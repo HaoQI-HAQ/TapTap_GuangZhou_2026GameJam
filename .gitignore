@@ -1,2 +1,12 @@
 .build/
 dist/
+.agent/
+.claude/
+.cli/
+.emmylua/
+engine-docs/
+examples/
+schemas/
+templates/
+tools/
+urhox-libs/
