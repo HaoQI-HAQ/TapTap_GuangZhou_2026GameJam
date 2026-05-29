@@ -193,15 +193,19 @@ function Enemy:Update(dt, playerPos2D)
     -- 计算距离
     local enemyPos = self.node_.position
     local dx = playerPos2D.x - enemyPos.x
+    local dy = playerPos2D.y - enemyPos.y
     local dist = math.abs(dx)
 
+    -- 判断玩家是否在上方（垂直偏移超过小怪身高一半则视为"上方"）
+    local playerAbove = dy > cfg.Size.h * 0.5
+
     -- 进入追逐范围后永久触发
-    if dist <= cfg.ChaseRange then
+    if dist <= cfg.ChaseRange and not playerAbove then
         self.triggered_ = true
     end
 
-    if dist <= cfg.AttackRange then
-        -- 攻击状态
+    if dist <= cfg.AttackRange and not playerAbove then
+        -- 攻击状态：只有玩家位于左右两侧才攻击
         self.state_ = "attack"
 
         if self.attackTimer_ <= 0 then
@@ -217,8 +221,8 @@ function Enemy:Update(dt, playerPos2D)
             self.flashTimer_ = 0.15
             return "attack_hit"
         end
-    elseif self.triggered_ then
-        -- 追逐状态
+    elseif self.triggered_ and not playerAbove then
+        -- 追逐状态：玩家在上方时不追
         self.state_ = "chase"
         local dir = dx > 0 and 1 or -1
         local moveAmount = dir * cfg.Speed * dt
