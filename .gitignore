@@ -1,24 +1,2 @@
-# Build output
-dist/
 .build/
-
-# Temp files
-.tmp/
-
-# Engine internal
-.project/
-logs/
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Engine knowledge (read-only, not user code)
-engine-docs/
-examples/
-templates/
-urhox-libs/
-schemas/
-prompts/
-.emmylua/
-.claude/
+dist/
