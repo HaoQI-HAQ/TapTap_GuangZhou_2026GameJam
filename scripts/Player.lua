@@ -332,13 +332,16 @@ function Player:UpdateInvincibility(dt)
     local cfg = Player.CONFIG
     self.invincibleTimer_ = self.invincibleTimer_ - dt
 
-    -- 闪烁效果
+    -- 闪烁效果：只切换模型可见性，不禁用整个节点（避免物理体失效）
     self.blinkTimer_ = self.blinkTimer_ - dt
     if self.blinkTimer_ <= 0 then
         self.blinkTimer_ = cfg.BlinkInterval
         self.blinkVisible_ = not self.blinkVisible_
         if self.node_ then
-            self.node_:SetEnabled(self.blinkVisible_)
+            local model = self.node_:GetComponent("StaticModel")
+            if model then
+                model.enabled = self.blinkVisible_
+            end
         end
     end
 
@@ -346,8 +349,12 @@ function Player:UpdateInvincibility(dt)
     if self.invincibleTimer_ <= 0 then
         self.invincibleTimer_ = 0
         self.blinkVisible_ = true
+        -- 确保模型恢复可见
         if self.node_ then
-            self.node_:SetEnabled(true)
+            local model = self.node_:GetComponent("StaticModel")
+            if model then
+                model.enabled = true
+            end
         end
         -- 根据 HP 决定下一个状态
         if self.hp_ <= 1 then
@@ -441,25 +448,29 @@ function Player:EnterState(newState)
         self.blinkTimer_ = Player.CONFIG.BlinkInterval
         self.blinkVisible_ = true
     elseif newState == Player.STATE.DYING then
-        -- 进入濒死：确保可见
-        if self.node_ then
-            self.node_:SetEnabled(true)
-        end
+        -- 进入濒死：确保模型可见
+        self:EnsureModelVisible()
     elseif newState == Player.STATE.DEAD then
         self.deathTimer_ = 0
         self.deathRotation_ = 0
-        -- 确保可见
-        if self.node_ then
-            self.node_:SetEnabled(true)
-        end
+        -- 确保模型可见
+        self:EnsureModelVisible()
     elseif newState == Player.STATE.NORMAL then
-        -- 恢复正常：确保可见
-        if self.node_ then
-            self.node_:SetEnabled(true)
-        end
+        -- 恢复正常：确保模型可见
+        self:EnsureModelVisible()
     end
 
     print("[Player] State: " .. oldState .. " -> " .. newState)
+end
+
+--- 确保模型组件可见（不操作 node enabled，避免影响物理）
+function Player:EnsureModelVisible()
+    if self.node_ then
+        local model = self.node_:GetComponent("StaticModel")
+        if model then
+            model.enabled = true
+        end
+    end
 end
 
 --- 是否处于无敌状态
@@ -585,8 +596,14 @@ function Player:Reset(x, y)
     else
         self.node_.position = Vector3(x, y, 0)
         self.node_.rotation = Quaternion.IDENTITY
-        self.node_:SetEnabled(true)
+        -- 确保模型可见（闪烁可能留下隐藏状态）
+        local model = self.node_:GetComponent("StaticModel")
+        if model then
+            model.enabled = true
+        end
+        -- 重置物理体并确保唤醒
         self.body_:SetLinearVelocity(Vector2(0, 0))
+        self.body_.awake = true
     end
 
     self.hp_ = self.maxHP_
