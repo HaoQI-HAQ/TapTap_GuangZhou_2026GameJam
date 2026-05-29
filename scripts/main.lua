@@ -27,11 +27,11 @@ function Start()
     -- 设置相机
     SetupCamera()
 
-    -- 创建UI（传入inputManager关联触摸按钮）
-    gameUI = GameUI:new(inputManager)
+    -- 创建UI（传入inputManager和player）
+    gameUI = GameUI:new(inputManager, player)
 
     SubscribeToEvent("Update", "HandleUpdate")
-    log:Write(LOG_INFO, "[Game] Started with keyboard/touch/gamepad input")
+    log:Write(LOG_INFO, "[Game] Started")
 end
 
 function CreateScene()
@@ -56,7 +56,7 @@ function SetupCamera()
     renderer.defaultZone.fogColor = Color(0.6, 0.8, 1.0, 1.0)
 end
 
--- UI按钮回调 -> 通过InputManager统一处理
+-- UI按钮回调
 function HandleUILeftPressed(eventType, eventData)
     inputManager:setTouchAction(InputManager.ACTION_LEFT, true)
 end
@@ -84,11 +84,14 @@ end
 function HandleUpdate(eventType, eventData)
     local dt = eventData["TimeStep"]:GetFloat()
 
-    -- 更新输入（合并键盘+手柄+触摸）
+    -- 更新输入
     inputManager:update()
 
     -- 更新玩家
     player:update(dt)
+
+    -- 更新UI（血量显示）
+    gameUI:update()
 
     -- 相机跟随玩家
     local pos = player:getPosition()

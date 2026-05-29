@@ -5,13 +5,16 @@ Player.__index = Player
 local MOVE_SPEED = 3.0
 local JUMP_FORCE = 5.0
 local MAX_JUMPS = 2        -- 最大跳跃次数（2段跳）
-local FALL_MULTIPLIER = 2  -- 下落加速倍数（额外1倍重力）
+local FALL_MULTIPLIER = 2  -- 下落加速倍数
+local MAX_HP = 5           -- 最大生命值
 
 function Player:new(scene, inputManager)
     local self = setmetatable({}, Player)
     self.inputManager = inputManager
     self.jumpCount = 0
-    self.jumpPressed = false  -- 用于检测按下瞬间（防止按住连跳）
+    self.jumpPressed = false
+    self.hp = MAX_HP
+    self.maxHp = MAX_HP
     self:_createNode(scene)
     return self
 end
@@ -20,10 +23,10 @@ function Player:_createNode(scene)
     self.node = scene:CreateChild("Player")
     self.node.position = Vector3(0, 2.0, 0)
 
-    -- 可视化
+    -- 可视化 - 蓝色方块角色
     local sprite = self.node:CreateComponent("StaticSprite2D")
     sprite:SetSprite(cache:GetResource("Sprite2D", "Urho2D/Box.png"))
-    sprite.color = Color(0.2, 0.5, 1.0, 1.0)
+    sprite.color = Color(0.2, 0.4, 0.9, 1.0)
     sprite.drawRect = Rect(-0.4, -0.6, 0.4, 0.6)
 
     -- 物理
@@ -37,7 +40,7 @@ function Player:_createNode(scene)
     shape.density = 1.0
     shape.friction = 0.3
 
-    log:Write(LOG_INFO, "[Player] Created with double jump")
+    log:Write(LOG_INFO, "[Player] Created with HP=" .. self.hp)
 end
 
 function Player:update(dt)
@@ -57,12 +60,12 @@ function Player:update(dt)
 
     self.body:SetLinearVelocity(Vector2(desiredVelX, velocity.y))
 
-    -- 下落时施加额外重力，加快下落速度
+    -- 下落加速
     if velocity.y < 0 then
         self.body:ApplyForceToCenter(Vector2(0, -9.81 * FALL_MULTIPLIER), true)
     end
 
-    -- 着地检测：垂直速度接近0视为着地，重置跳跃次数
+    -- 着地检测
     if math.abs(velocity.y) < 0.05 then
         self.jumpCount = 0
     end
@@ -71,13 +74,36 @@ function Player:update(dt)
     local jumpAction = self.inputManager:isActionActive(InputManager.ACTION_JUMP)
     if jumpAction and not self.jumpPressed then
         if self.jumpCount < MAX_JUMPS then
-            self.body:SetLinearVelocity(Vector2(velocity.x, 0)) -- 重置垂直速度
+            self.body:SetLinearVelocity(Vector2(velocity.x, 0))
             self.body:ApplyLinearImpulseToCenter(Vector2(0, JUMP_FORCE), true)
             self.jumpCount = self.jumpCount + 1
-            log:Write(LOG_INFO, "[Player] Jump " .. self.jumpCount .. "/" .. MAX_JUMPS)
         end
     end
     self.jumpPressed = jumpAction
+end
+
+-- 受伤
+function Player:takeDamage(amount)
+    self.hp = math.max(0, self.hp - (amount or 1))
+    log:Write(LOG_INFO, "[Player] Took damage, HP=" .. self.hp)
+    return self.hp <= 0
+end
+
+-- 回血
+function Player:heal(amount)
+    self.hp = math.min(self.maxHp, self.hp + (amount or 1))
+end
+
+function Player:getHp()
+    return self.hp
+end
+
+function Player:getMaxHp()
+    return self.maxHp
+end
+
+function Player:isDead()
+    return self.hp <= 0
 end
 
 function Player:getPosition()
