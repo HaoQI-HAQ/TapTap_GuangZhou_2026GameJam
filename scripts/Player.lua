@@ -6,6 +6,16 @@ local Player = {}
 Player.__index = Player
 
 -- ============================================================================
+-- 状态常量
+-- ============================================================================
+Player.STATE = {
+    NORMAL = "normal",     -- 正常：标准颜色，流畅动作
+    HURT = "hurt",         -- 受伤：无敌帧闪烁1秒
+    DYING = "dying",       -- 濒死（1血）：颜色变暗，动作迟缓
+    DEAD = "dead",         -- 死亡：倒地 → Game Over
+}
+
+-- ============================================================================
 -- 配置
 -- ============================================================================
 Player.CONFIG = {
@@ -19,6 +29,17 @@ Player.CONFIG = {
     AttackCooldown = 0.5,     -- 攻击冷却 (秒)
     MaxHP = 5,                -- 最大生命值
     Gravity = 20.0,           -- 重力（用于计算跳跃力）
+
+    -- 状态相关配置
+    InvincibleDuration = 1.0, -- 无敌帧持续时间 (秒)
+    BlinkInterval = 0.08,     -- 闪烁间隔 (秒)
+    DyingSpeedMult = 0.6,     -- 濒死时速度乘数
+    DeathFallDuration = 0.8,  -- 死亡倒地动画时长 (秒)
+
+    -- 颜色
+    ColorNormal = Color(0.2, 0.4, 0.9, 1.0),  -- 标准蓝色
+    ColorDying = Color(0.15, 0.2, 0.4, 1.0),   -- 暗蓝色（濒死）
+    ColorDead = Color(0.1, 0.1, 0.15, 0.8),    -- 极暗色（死亡）
 }
 
 -- 由配置自动计算
@@ -38,9 +59,19 @@ function Player.New(scene)
     self.body_ = nil           ---@type RigidBody2D
     self.attackFxNode_ = nil   ---@type Node
 
-    -- 状态
+    -- 生命值
     self.hp_ = Player.CONFIG.MaxHP
     self.maxHP_ = Player.CONFIG.MaxHP
+
+    -- 角色状态
+    self.state_ = Player.STATE.NORMAL
+    self.invincibleTimer_ = 0    -- 无敌帧计时
+    self.blinkTimer_ = 0        -- 闪烁计时
+    self.blinkVisible_ = true   -- 当前是否可见（闪烁用）
+    self.deathTimer_ = 0        -- 死亡倒地动画计时
+    self.deathRotation_ = 0     -- 死亡时旋转角度
+
+    -- 动作状态
     self.isGrounded_ = false
     self.facingRight_ = true
     self.attackTimer_ = 0
@@ -60,6 +91,9 @@ function Player.New(scene)
     self.wantJump_ = false
     self.touchLeft_ = false
     self.touchRight_ = false
+
+    -- 回调
+    self.onDeath = nil          -- 死亡完成回调 function()
 
     return self
 end
@@ -184,6 +218,12 @@ end
 function Player:Update(dt)
     if not self.body_ then return end
 
+    -- 死亡状态：只播放倒地动画
+    if self.state_ == Player.STATE.DEAD then
+        self:UpdateDeathAnim(dt)
+        return
+    end
+
     -- 计时器
     if self.attackTimer_ > 0 then
         self.attackTimer_ = self.attackTimer_ - dt
@@ -194,6 +234,9 @@ function Player:Update(dt)
             self.isAttacking_ = false
         end
     end
+
+    -- 更新无敌帧
+    self:UpdateInvincibility(dt)
 
     -- 输入
     self:GatherInput()
@@ -207,6 +250,9 @@ function Player:Update(dt)
     -- 攻击特效
     self:UpdateAttackFx(dt)
 
+    -- 更新外观（根据状态）
+    self:UpdateStateVisual()
+
     -- 消耗跳跃输入
     self.wantJump_ = false
 end
@@ -219,8 +265,14 @@ function Player:UpdateMovement(dt)
         self.jumpGraceTimer_ = self.jumpGraceTimer_ - dt
     end
 
+    -- 濒死时速度降低
+    local speedMult = 1.0
+    if self.state_ == Player.STATE.DYING then
+        speedMult = cfg.DyingSpeedMult
+    end
+
     local vel = self.body_:GetLinearVelocity()
-    local desiredVelX = self.moveX_ * cfg.Speed
+    local desiredVelX = self.moveX_ * cfg.Speed * speedMult
     self.body_:SetLinearVelocity(Vector2(desiredVelX, vel.y))
 
     -- 朝向
@@ -265,16 +317,154 @@ end
 
 function Player:UpdateAttackVisual()
     if not self.node_ then return end
+    -- 攻击时颜色变白（短暂闪白）由 UpdateStateVisual 统一处理
+    -- 这里仅保留攻击逻辑标记
+end
+
+-- ============================================================================
+-- 状态系统
+-- ============================================================================
+
+--- 更新无敌帧计时和闪烁效果
+function Player:UpdateInvincibility(dt)
+    if self.state_ ~= Player.STATE.HURT then return end
+
+    local cfg = Player.CONFIG
+    self.invincibleTimer_ = self.invincibleTimer_ - dt
+
+    -- 闪烁效果
+    self.blinkTimer_ = self.blinkTimer_ - dt
+    if self.blinkTimer_ <= 0 then
+        self.blinkTimer_ = cfg.BlinkInterval
+        self.blinkVisible_ = not self.blinkVisible_
+        if self.node_ then
+            self.node_:SetEnabled(self.blinkVisible_)
+        end
+    end
+
+    -- 无敌时间结束
+    if self.invincibleTimer_ <= 0 then
+        self.invincibleTimer_ = 0
+        self.blinkVisible_ = true
+        if self.node_ then
+            self.node_:SetEnabled(true)
+        end
+        -- 根据 HP 决定下一个状态
+        if self.hp_ <= 1 then
+            self:EnterState(Player.STATE.DYING)
+        else
+            self:EnterState(Player.STATE.NORMAL)
+        end
+    end
+end
+
+--- 更新死亡倒地动画
+function Player:UpdateDeathAnim(dt)
+    local cfg = Player.CONFIG
+    self.deathTimer_ = self.deathTimer_ + dt
+
+    -- 停止物理运动
+    if self.body_ then
+        self.body_:SetLinearVelocity(Vector2(0, self.body_:GetLinearVelocity().y))
+    end
+
+    -- 倒地旋转动画 (0 → 90度)
+    local progress = math.min(self.deathTimer_ / cfg.DeathFallDuration, 1.0)
+    -- 使用 easeOutBounce 缓动
+    local eased = self:EaseOutBack(progress)
+    self.deathRotation_ = eased * 90.0
+
+    if self.node_ then
+        -- 向面朝方向倒下
+        local dir = self.facingRight_ and -1 or 1
+        self.node_.rotation = Quaternion(dir * self.deathRotation_, Vector3.FORWARD)
+
+        -- 同时更新颜色渐暗
+        local model = self.node_:GetComponent("StaticModel")
+        if model then
+            local mat = model:GetMaterial(0)
+            if mat then
+                local c = cfg.ColorDead
+                mat:SetShaderParameter("MatDiffColor", Variant(Color(c.r, c.g, c.b, 1.0 - progress * 0.3)))
+            end
+        end
+    end
+
+    -- 动画结束，触发 Game Over 回调
+    if progress >= 1.0 and self.deathTimer_ < cfg.DeathFallDuration + 0.1 then
+        self.deathTimer_ = cfg.DeathFallDuration + 0.1  -- 防止重复触发
+        if self.onDeath then
+            self.onDeath()
+        end
+    end
+end
+
+--- 缓动函数 - easeOutBack
+function Player:EaseOutBack(t)
+    local c1 = 1.70158
+    local c3 = c1 + 1
+    return 1 + c3 * math.pow(t - 1, 3) + c1 * math.pow(t - 1, 2)
+end
+
+--- 更新外观 (根据当前状态)
+function Player:UpdateStateVisual()
+    if not self.node_ then return end
     local model = self.node_:GetComponent("StaticModel")
     if not model then return end
     local mat = model:GetMaterial(0)
     if not mat then return end
 
+    local cfg = Player.CONFIG
+
     if self.isAttacking_ then
+        -- 攻击时闪白
         mat:SetShaderParameter("MatDiffColor", Variant(Color(1.0, 1.0, 1.0, 1.0)))
+    elseif self.state_ == Player.STATE.DYING then
+        -- 濒死：暗色
+        mat:SetShaderParameter("MatDiffColor", Variant(cfg.ColorDying))
+    elseif self.state_ == Player.STATE.HURT then
+        -- 受伤中：闪烁时保持正常色（可见性由 node enabled 控制）
+        mat:SetShaderParameter("MatDiffColor", Variant(cfg.ColorNormal))
     else
-        mat:SetShaderParameter("MatDiffColor", Variant(Color(0.2, 0.4, 0.9, 1.0)))
+        -- 正常状态
+        mat:SetShaderParameter("MatDiffColor", Variant(cfg.ColorNormal))
     end
+end
+
+--- 切换状态
+function Player:EnterState(newState)
+    local oldState = self.state_
+    self.state_ = newState
+
+    if newState == Player.STATE.HURT then
+        self.invincibleTimer_ = Player.CONFIG.InvincibleDuration
+        self.blinkTimer_ = Player.CONFIG.BlinkInterval
+        self.blinkVisible_ = true
+    elseif newState == Player.STATE.DYING then
+        -- 进入濒死：确保可见
+        if self.node_ then
+            self.node_:SetEnabled(true)
+        end
+    elseif newState == Player.STATE.DEAD then
+        self.deathTimer_ = 0
+        self.deathRotation_ = 0
+        -- 确保可见
+        if self.node_ then
+            self.node_:SetEnabled(true)
+        end
+    elseif newState == Player.STATE.NORMAL then
+        -- 恢复正常：确保可见
+        if self.node_ then
+            self.node_:SetEnabled(true)
+        end
+    end
+
+    print("[Player] State: " .. oldState .. " -> " .. newState)
+end
+
+--- 是否处于无敌状态
+function Player:IsInvincible()
+    return self.state_ == Player.STATE.HURT or self.state_ == Player.STATE.DEAD
 end
 
 function Player:UpdateAttackFx(dt)
@@ -334,14 +524,36 @@ end
 -- 受击
 -- ============================================================================
 
+--- 受到伤害，自动处理状态切换
+---@param amount number 伤害量
+---@return number 剩余 HP
 function Player:TakeDamage(amount)
+    -- 无敌状态下不受伤
+    if self:IsInvincible() then
+        return self.hp_
+    end
+
     self.hp_ = self.hp_ - amount
     if self.hp_ < 0 then self.hp_ = 0 end
+
+    -- 根据剩余 HP 切换状态
+    if self.hp_ <= 0 then
+        self:EnterState(Player.STATE.DEAD)
+    else
+        -- 受伤进入无敌帧（无论是否濒死都先闪烁）
+        self:EnterState(Player.STATE.HURT)
+    end
+
     return self.hp_
 end
 
 function Player:IsDead()
-    return self.hp_ <= 0
+    return self.state_ == Player.STATE.DEAD
+end
+
+--- 获取当前状态
+function Player:GetState()
+    return self.state_
 end
 
 -- ============================================================================
@@ -372,10 +584,18 @@ function Player:Reset(x, y)
         self:Create(x, y)
     else
         self.node_.position = Vector3(x, y, 0)
+        self.node_.rotation = Quaternion.IDENTITY
+        self.node_:SetEnabled(true)
         self.body_:SetLinearVelocity(Vector2(0, 0))
     end
 
     self.hp_ = self.maxHP_
+    self.state_ = Player.STATE.NORMAL
+    self.invincibleTimer_ = 0
+    self.blinkTimer_ = 0
+    self.blinkVisible_ = true
+    self.deathTimer_ = 0
+    self.deathRotation_ = 0
     self.isGrounded_ = false
     self.jumpCount_ = 0
     self.groundContacts_ = 0

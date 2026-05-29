@@ -175,6 +175,13 @@ function CreateGameUIModule()
     gameUI_.onTouchRight = function(pressed)
         if player_ then player_.touchRight_ = pressed end
     end
+
+    -- 玩家死亡回调（倒地动画结束后触发）
+    if player_ then
+        player_.onDeath = function()
+            ShowGameOver()
+        end
+    end
 end
 
 -- ============================================================================
@@ -217,7 +224,13 @@ end
 function HandleUpdate(eventType, eventData)
     local dt = eventData["TimeStep"]:GetFloat()
 
-    if gameOver_ then return end
+    -- 玩家死亡动画仍需更新
+    if gameOver_ then
+        if player_ then
+            player_:Update(dt)
+        end
+        return
+    end
 
     -- 更新玩家
     if player_ then
@@ -229,14 +242,10 @@ function HandleUpdate(eventType, eventData)
         local playerPos = player_ and player_:GetPosition2D() or nil
         local event = enemy_:Update(dt, playerPos)
 
-        -- 小怪攻击命中玩家
+        -- 小怪攻击命中玩家（TakeDamage 内部处理状态切换和死亡）
         if event == "attack_hit" and player_ then
             local remainHP = player_:TakeDamage(enemy_:GetAttackDamage())
             print("Enemy attacks! Player HP=" .. remainHP .. "/" .. player_.maxHP_)
-            if player_:IsDead() then
-                ShowGameOver()
-                return
-            end
         end
 
         -- 攻击范围提示
@@ -322,9 +331,7 @@ end
 
 function ShowGameOver()
     gameOver_ = true
-    if player_ then
-        player_:Destroy()
-    end
+    -- 玩家节点保留（显示倒地姿态），不再销毁
     if gameUI_ then
         gameUI_:ShowGameOver(true)
     end
