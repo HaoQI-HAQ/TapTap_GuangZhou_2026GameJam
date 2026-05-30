@@ -45,6 +45,10 @@ function Start()
         table.insert(enemies, e)
     end
     player.enemies = enemies  -- 攻击时动态查找最近敌人
+    -- 给每个敌人赋值友军列表（用于前方检测）
+    for _, e in ipairs(enemies) do
+        e.enemyList = enemies
+    end
 
     -- 创建游戏UI（含BACK按钮，默认隐藏）
     gameUI = GameUI:new(inputManager, player)
@@ -84,7 +88,7 @@ function Start()
                     dmg = 4  -- 克制加倍
                     log:Write(LOG_INFO, "[Card] Counter! " .. card.element .. " > " .. nearestEnemy.element)
                 end
-                nearestEnemy:takeDamage(dmg)
+                nearestEnemy:takeDamage(dmg, myPos.x)
             end
         elseif card.type == CardSystem.TYPE_DEFENSE then
             -- 防御型：给予玩家短暂无敌

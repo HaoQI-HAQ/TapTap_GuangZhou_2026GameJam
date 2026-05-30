@@ -10,6 +10,7 @@ local CHASE_SPEED = 2.5
 local ATTACK_RANGE = 1.0
 local ATTACK_DAMAGE = 1
 local ATTACK_COOLDOWN = 1.0  -- 每秒攻击一次
+local FRONT_CHECK_DIST = 1.0  -- 前方友军检测距离
 
 -- 属性定义：颜色 + 克制关系
 Enemy.ELEMENTS = {
@@ -37,6 +38,8 @@ function Enemy:new(scene, camera, player, x, y, element)
     self.chasing = false
     self.attacking = false
     self.attackTimer = 0
+    self.blockedByAlly = false  -- 前方有友军，暂停追逐
+    self.enemyList = nil        -- 在 main.lua 创建后赋值
     self.hpBarContainer = nil
     self.hpBarFill = nil
     self.chaseWarning = nil
@@ -65,10 +68,27 @@ function Enemy:_createNode(scene, x, y)
     self.body.fixedRotation = true
     self.body.linearDamping = 0.5
 
-    local shape = self.node:CreateComponent("CollisionBox2D")
-    shape.size = Vector2(0.8, 1.2)
-    shape.density = 1.0
-    shape.friction = 0.0  -- 与玩家零摩擦
+    -- 胶囊碰撞体：矩形中段 + 上下两个圆形
+    local radius = 0.4  -- 半径 = 宽度/2
+    local boxH = 1.2 - radius * 2  -- 中段矩形高度
+
+    local boxShape = self.node:CreateComponent("CollisionBox2D")
+    boxShape.size = Vector2(0.8, boxH)
+    boxShape.center = Vector2(0, 0)
+    boxShape.density = 1.0
+    boxShape.friction = 0.0
+
+    local topCircle = self.node:CreateComponent("CollisionCircle2D")
+    topCircle.radius = radius
+    topCircle.center = Vector2(0, boxH / 2)
+    topCircle.density = 1.0
+    topCircle.friction = 0.0
+
+    local bottomCircle = self.node:CreateComponent("CollisionCircle2D")
+    bottomCircle.radius = radius
+    bottomCircle.center = Vector2(0, -boxH / 2)
+    bottomCircle.density = 1.0
+    bottomCircle.friction = 0.0
 
     log:Write(LOG_INFO, "[Enemy] Created at (" .. x .. ", " .. y .. ") HP=" .. self.hp)
 end
@@ -170,7 +190,7 @@ function Enemy:update(dt)
             -- 按冷却间隔对玩家造成伤害
             self.attackTimer = self.attackTimer + dt
             if self.attackTimer >= ATTACK_COOLDOWN then
-                local hit = self.player:takeDamage(ATTACK_DAMAGE)
+                local hit = self.player:takeDamage(ATTACK_DAMAGE, pos.x)
                 if hit ~= false then
                     -- 成功造成伤害，重置计时器
                     self.attackTimer = 0
@@ -180,13 +200,25 @@ function Enemy:update(dt)
                 end
             end
         else
-            -- 追逐状态：朝玩家移动
+            -- 追逐状态：检查前方是否有友军挡路
             self.attacking = false
             self.attackTimer = 0
             if self.attackWarning then self.attackWarning.visible = false end
-            if self.chaseWarning then self.chaseWarning.visible = true end
+
             local dir = playerPos.x > pos.x and 1 or -1
-            self.body:SetLinearVelocity(Vector2(CHASE_SPEED * dir, velocity.y))
+            local blocked = self:_isBlockedByAlly(dir)
+
+            if blocked then
+                -- 前方有友军，停下待机
+                self.blockedByAlly = true
+                self.body:SetLinearVelocity(Vector2(0, velocity.y))
+                if self.chaseWarning then self.chaseWarning.visible = false end
+            else
+                -- 无阻挡，正常追逐
+                self.blockedByAlly = false
+                if self.chaseWarning then self.chaseWarning.visible = true end
+                self.body:SetLinearVelocity(Vector2(CHASE_SPEED * dir, velocity.y))
+            end
         end
     else
         -- 待机模式：左右徘徊
@@ -203,6 +235,31 @@ function Enemy:update(dt)
 
     -- 更新伤害飘字动画
     self:_updateFloatingTexts(dt)
+end
+
+-- 检测前方是否有友军挡路（dir: 1=右, -1=左）
+function Enemy:_isBlockedByAlly(dir)
+    if not self.enemyList then return false end
+    local myX = self.node.position.x
+    for _, other in ipairs(self.enemyList) do
+        if other ~= self and other.alive and other.node ~= nil then
+            local otherX = other.node.position.x
+            local dx = otherX - myX
+            -- 检测同方向且距离在阈值内的友军
+            if dir > 0 then
+                -- 向右追：友军在我右边且距离近
+                if dx > 0 and dx < FRONT_CHECK_DIST then
+                    return true
+                end
+            else
+                -- 向左追：友军在我左边且距离近
+                if dx < 0 and math.abs(dx) < FRONT_CHECK_DIST then
+                    return true
+                end
+            end
+        end
+    end
+    return false
 end
 
 -- 将世界坐标转换为屏幕坐标，更新血条位置
@@ -225,10 +282,16 @@ function Enemy:_updateHpBar()
 end
 
 -- 受伤
-function Enemy:takeDamage(amount)
+function Enemy:takeDamage(amount, sourceX)
     if not self.alive then return end
     local dmg = amount or 1
     self.hp = math.max(0, self.hp - dmg)
+    -- 小击退：远离攻击来源方向
+    if sourceX and self.body and self.node then
+        local myX = self.node.position.x
+        local dir = myX > sourceX and 1 or -1
+        self.body:ApplyLinearImpulseToCenter(Vector2(dir * 1.5, 1.0), true)
+    end
     -- 伤害飘字
     self:_showDamageFloat(dmg)
     if self.hp <= 0 then
@@ -316,6 +379,8 @@ function Enemy:_clearFloatingTexts()
         self.floatingTexts = {}
     end
 end
+
+
 
 function Enemy:reset()
     self.hp = self.maxHp

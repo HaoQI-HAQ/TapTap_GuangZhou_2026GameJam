@@ -116,10 +116,27 @@ function Player:_createNode(scene)
     self.body.fixedRotation = true
     self.body.linearDamping = 0.5
 
-    local shape = self.node:CreateComponent("CollisionBox2D")
-    shape.size = Vector2(0.5, 1.4)
-    shape.density = 1.0
-    shape.friction = 0.3
+    -- 胶囊碰撞体：矩形中段 + 上下两个圆形
+    local radius = 0.25  -- 半径 = 宽度/2
+    local boxH = 1.4 - radius * 2  -- 中段矩形高度
+
+    local boxShape = self.node:CreateComponent("CollisionBox2D")
+    boxShape.size = Vector2(0.5, boxH)
+    boxShape.center = Vector2(0, 0)
+    boxShape.density = 1.0
+    boxShape.friction = 0.3
+
+    local topCircle = self.node:CreateComponent("CollisionCircle2D")
+    topCircle.radius = radius
+    topCircle.center = Vector2(0, boxH / 2)
+    topCircle.density = 1.0
+    topCircle.friction = 0.3
+
+    local bottomCircle = self.node:CreateComponent("CollisionCircle2D")
+    bottomCircle.radius = radius
+    bottomCircle.center = Vector2(0, -boxH / 2)
+    bottomCircle.density = 1.0
+    bottomCircle.friction = 0.0  -- 底部零摩擦，防止卡边
 
     log:Write(LOG_INFO, "[Player] Created with HP=" .. self.hp)
 end
@@ -310,7 +327,7 @@ function Player:_doAttack()
     end
 
     if nearestEnemy and nearestDist <= ATTACK_RANGE then
-        nearestEnemy:takeDamage(ATTACK_DAMAGE)
+        nearestEnemy:takeDamage(ATTACK_DAMAGE, myPos.x)
         log:Write(LOG_INFO, "[Player] Attack hit! Dist=" .. string.format("%.2f", nearestDist))
     end
 end
@@ -337,7 +354,7 @@ function Player:_slamLand()
             local enemyPos = e.node.position
             local dist = math.abs(myPos.x - enemyPos.x)
             if dist <= SLAM_AOE_RANGE then
-                e:takeDamage(SLAM_DAMAGE)
+                e:takeDamage(SLAM_DAMAGE, myPos.x)
                 if e:isAlive() and e.body then
                     local dir = enemyPos.x > myPos.x and 1 or -1
                     e.body:ApplyLinearImpulseToCenter(Vector2(SLAM_KNOCKBACK * dir, SLAM_KNOCKBACK * 0.6), true)
@@ -393,7 +410,7 @@ function Player:_updateDeath(dt)
 end
 
 -- 受伤
-function Player:takeDamage(amount)
+function Player:takeDamage(amount, sourceX)
     -- 无敌期间不受伤
     if self.invincible then
         log:Write(LOG_INFO, "[Player] Invincible! Damage blocked.")
@@ -403,6 +420,13 @@ function Player:takeDamage(amount)
 
     self.hp = math.max(0, self.hp - (amount or 1))
     log:Write(LOG_INFO, "[Player] Took damage, HP=" .. self.hp)
+
+    -- 小击退：远离攻击来源方向
+    if sourceX and self.body then
+        local myX = self.node.position.x
+        local dir = myX > sourceX and 1 or -1
+        self.body:ApplyLinearImpulseToCenter(Vector2(dir * 2.0, 1.5), true)
+    end
 
     if self.hp <= 0 then
         self:_enterDeath()
