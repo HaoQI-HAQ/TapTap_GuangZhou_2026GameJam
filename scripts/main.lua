@@ -4,15 +4,18 @@ require "scripts/input_manager"
 require "scripts/player"
 require "scripts/ground"
 require "scripts/game_ui"
+require "scripts/enemy"
 require "scripts/menu_overlay"
 
 local scene_ = nil
 local cameraNode = nil
+local camera_ = nil
 local player = nil
 local gameUI = nil
 local inputManager = nil
 local menuOverlay = nil
 local physicsWorld_ = nil
+local enemies = {}
 
 function Start()
     SampleStart()
@@ -30,11 +33,28 @@ function Start()
     -- 设置相机
     SetupCamera()
 
+    -- 创建5种属性敌人（分布在玩家右边，间隔1.5米）
+    local elementList = { "fire", "water", "thunder", "wind", "ice" }
+    for i, elem in ipairs(elementList) do
+        local xPos = 2.0 + (i - 1) * 1.5  -- 间隔1.5米
+        local e = Enemy:new(scene_, camera_, player, xPos, -1.9, elem)
+        table.insert(enemies, e)
+    end
+    player.enemies = enemies  -- 攻击时动态查找最近敌人
+
     -- 创建游戏UI（含BACK按钮，默认隐藏）
     gameUI = GameUI:new(inputManager, player)
 
+    -- 设置玩家死亡回调
+    player.gameOverCallback = function()
+        ShowGameOver()
+    end
+
     -- 创建菜单覆盖层（默认显示，挡住游戏画面）
     menuOverlay = MenuOverlay:new()
+    
+    -- Game Over UI（默认隐藏）
+    _createGameOverUI()
 
     -- 初始状态：菜单显示，物理暂停
     physicsWorld_.enabled = false
@@ -56,11 +76,11 @@ function SetupCamera()
     cameraNode = scene_:CreateChild("Camera")
     cameraNode.position = Vector3(0, 0, -10)
 
-    local camera = cameraNode:CreateComponent("Camera")
-    camera.orthographic = true
-    camera.orthoSize = 5.2
+    camera_ = cameraNode:CreateComponent("Camera")
+    camera_.orthographic = true
+    camera_.orthoSize = 5.2
 
-    local viewport = Viewport:new(scene_, camera)
+    local viewport = Viewport:new(scene_, camera_)
     renderer:SetViewport(0, viewport)
     renderer.defaultZone.fogColor = Color(0.6, 0.8, 1.0, 1.0)
 end
@@ -68,9 +88,14 @@ end
 --- 从菜单进入游戏：重置所有状态，显示游戏UI
 function EnterGame()
     player:reset()
+    for _, e in ipairs(enemies) do
+        e:reset()
+        e:showHpBar()
+    end
     cameraNode.position = Vector3(0, -1.9, -10)
     physicsWorld_.enabled = true
     gameUI:show()
+    gameUI:resetCountdown()
     log:Write(LOG_INFO, "[Game] Enter game scene")
 end
 
@@ -78,6 +103,9 @@ end
 function ReturnToMenu()
     physicsWorld_.enabled = false
     gameUI:hide()
+    for _, e in ipairs(enemies) do
+        e:hideHpBar()
+    end
     menuOverlay:show()
     log:Write(LOG_INFO, "[Game] Return to menu")
 end
@@ -123,6 +151,14 @@ function HandleUIJumpReleased(eventType, eventData)
     inputManager:setTouchAction(InputManager.ACTION_JUMP, false)
 end
 
+function HandleUIAttackPressed(eventType, eventData)
+    inputManager:setTouchAction(InputManager.ACTION_ATTACK, true)
+end
+
+function HandleUIAttackReleased(eventType, eventData)
+    inputManager:setTouchAction(InputManager.ACTION_ATTACK, false)
+end
+
 function HandleUpdate(eventType, eventData)
     local dt = eventData["TimeStep"]:GetFloat()
 
@@ -137,8 +173,13 @@ function HandleUpdate(eventType, eventData)
     -- 更新玩家
     player:update(dt)
 
-    -- 更新UI（血量显示）
-    gameUI:update()
+    -- 更新所有敌人
+    for _, e in ipairs(enemies) do
+        e:update(dt)
+    end
+
+    -- 更新UI（血量显示+倒计时）
+    gameUI:update(dt)
 
     -- 相机延迟跟随玩家
     local targetPos = player:getPosition()
@@ -147,6 +188,73 @@ function HandleUpdate(eventType, eventData)
     local newX = camPos.x + (targetPos.x - camPos.x) * lerpSpeed * dt
     local newY = camPos.y + (targetPos.y - camPos.y) * lerpSpeed * dt
     cameraNode.position = Vector3(newX, newY, -10)
+end
+
+-- Game Over UI
+local gameOverContainer = nil
+
+function _createGameOverUI()
+    local uiRoot = ui.root
+
+    gameOverContainer = UIElement:new()
+    uiRoot:AddChild(gameOverContainer)
+    gameOverContainer:SetSize(graphics.width, graphics.height)
+    gameOverContainer:SetAlignment(HA_LEFT, VA_TOP)
+    gameOverContainer.priority = 900
+
+    -- 半透明黑色遮罩
+    local bg = BorderImage:new()
+    gameOverContainer:AddChild(bg)
+    bg:SetSize(graphics.width, graphics.height)
+    bg.color = Color(0, 0, 0, 0.8)
+
+    -- Game Over 文字
+    local title = Text:new()
+    gameOverContainer:AddChild(title)
+    title:SetStyleAuto()
+    title.text = "GAME OVER"
+    title:SetFontSize(48)
+    title:SetAlignment(HA_CENTER, VA_CENTER)
+    title:SetPosition(0, -30)
+    title.color = Color(1.0, 0.2, 0.2, 1.0)
+
+    -- 重新开始按钮
+    local restartBtn = Button:new()
+    gameOverContainer:AddChild(restartBtn)
+    restartBtn:SetStyleAuto()
+    restartBtn:SetSize(160, 50)
+    restartBtn:SetAlignment(HA_CENTER, VA_CENTER)
+    restartBtn:SetPosition(0, 40)
+
+    local btnText = Text:new()
+    restartBtn:AddChild(btnText)
+    btnText:SetStyleAuto()
+    btnText.text = "RESTART"
+    btnText:SetFontSize(22)
+    btnText:SetAlignment(HA_CENTER, VA_CENTER)
+
+    SubscribeToEvent(restartBtn, "Released", "HandleRestart")
+
+    gameOverContainer.visible = false
+end
+
+function ShowGameOver()
+    if gameOverContainer then
+        gameOverContainer.visible = true
+    end
+    physicsWorld_.enabled = false
+    gameUI:hide()
+    for _, e in ipairs(enemies) do
+        e:hideHpBar()
+    end
+    log:Write(LOG_INFO, "[Game] Game Over!")
+end
+
+function HandleRestart(eventType, eventData)
+    if gameOverContainer then
+        gameOverContainer.visible = false
+    end
+    EnterGame()
 end
 
 function Stop()

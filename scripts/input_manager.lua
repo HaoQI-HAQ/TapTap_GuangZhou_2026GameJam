@@ -6,6 +6,8 @@ InputManager.__index = InputManager
 InputManager.ACTION_LEFT = "left"
 InputManager.ACTION_RIGHT = "right"
 InputManager.ACTION_JUMP = "jump"
+InputManager.ACTION_ATTACK = "attack"
+InputManager.ACTION_DOWN = "down"
 
 function InputManager:new()
     local self = setmetatable({}, InputManager)
@@ -14,14 +16,18 @@ function InputManager:new()
     self.actions = {
         [InputManager.ACTION_LEFT] = false,
         [InputManager.ACTION_RIGHT] = false,
-        [InputManager.ACTION_JUMP] = false
+        [InputManager.ACTION_JUMP] = false,
+        [InputManager.ACTION_ATTACK] = false,
+        [InputManager.ACTION_DOWN] = false
     }
 
     -- 触摸按钮状态（由UI回调设置）
     self.touchActions = {
         [InputManager.ACTION_LEFT] = false,
         [InputManager.ACTION_RIGHT] = false,
-        [InputManager.ACTION_JUMP] = false
+        [InputManager.ACTION_JUMP] = false,
+        [InputManager.ACTION_ATTACK] = false,
+        [InputManager.ACTION_DOWN] = false
     }
 
     -- 键盘映射: key -> action
@@ -32,7 +38,10 @@ function InputManager:new()
         [KEY_RIGHT] = InputManager.ACTION_RIGHT,
         [KEY_SPACE] = InputManager.ACTION_JUMP,
         [KEY_W] = InputManager.ACTION_JUMP,
-        [KEY_UP] = InputManager.ACTION_JUMP
+        [KEY_UP] = InputManager.ACTION_JUMP,
+        [KEY_J] = InputManager.ACTION_ATTACK,
+        [KEY_S] = InputManager.ACTION_DOWN,
+        [KEY_DOWN] = InputManager.ACTION_DOWN
     }
 
     -- 手柄按钮映射: button -> action
