@@ -10,6 +10,7 @@ InputManager.ACTION_ATTACK = "attack"
 InputManager.ACTION_DOWN = "down"
 
 function InputManager:new()
+    ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, InputManager)
 
     -- 动作状态
@@ -121,13 +122,13 @@ function InputManager:_pollGamepad()
     -- 十字键（HAT）
     if joystick.numHats > 0 then
         local hat = joystick:GetHatPosition(0)
-        if bit32.band(hat, HAT_LEFT) ~= 0 then
+        if (hat & HAT_LEFT) ~= 0 then
             self.actions[InputManager.ACTION_LEFT] = true
         end
-        if bit32.band(hat, HAT_RIGHT) ~= 0 then
+        if (hat & HAT_RIGHT) ~= 0 then
             self.actions[InputManager.ACTION_RIGHT] = true
         end
-        if bit32.band(hat, HAT_UP) ~= 0 then
+        if (hat & HAT_UP) ~= 0 then
             self.actions[InputManager.ACTION_JUMP] = true
         end
     end

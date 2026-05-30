@@ -21,6 +21,7 @@ Enemy.ELEMENTS = {
 }
 
 function Enemy:new(scene, camera, player, x, y, element)
+    ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, Enemy)
     self.hp = ENEMY_HP
     self.maxHp = ENEMY_HP

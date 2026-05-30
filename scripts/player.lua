@@ -1,4 +1,4 @@
--- Player 类
+-- Player 类 - 精灵动画 + 战斗系统
 Player = {}
 Player.__index = Player
 
@@ -8,7 +8,7 @@ local MAX_JUMPS = 2        -- 最大跳跃次数（2段跳）
 local FALL_MULTIPLIER = 2  -- 下落加速倍数
 local MAX_HP = 5           -- 最大生命值
 
-local INVINCIBLE_DURATION = 1.5  -- 无敌帧持续时间（秒）（需大于敌人攻击冷却1.0s）
+local INVINCIBLE_DURATION = 1.5  -- 无敌帧持续时间（秒）
 local BLINK_INTERVAL = 0.1       -- 闪烁间隔
 local NEAR_DEATH_SPEED_MULT = 0.6  -- 濒死时移动速度倍率
 local ATTACK_RANGE = 1.5         -- 平A攻击距离（米）
@@ -19,7 +19,22 @@ local SLAM_AOE_RANGE = 2.0        -- 下砸AOE范围（米）
 local SLAM_DAMAGE = 3             -- 下砸伤害
 local SLAM_KNOCKBACK = 8.0        -- 击飞力度
 
+-- 精灵图配置
+local WALK_SHEET = "image/Player/player_walk.png"
+local IDLE_SHEET = "image/Player/player_idle.png"
+local JUMP_SHEET = "image/Player/player_walk.png"  -- 暂用行走图代替跳跃
+local WALK_COLS = 6        -- 行走6帧
+local IDLE_COLS = 6        -- 待机6帧
+local JUMP_COLS = 6        -- 跳跃6帧（暂用行走代替）
+local ANIM_FPS = 10        -- 行走动画帧率
+local IDLE_FPS = 6         -- 待机动画帧率
+local JUMP_FPS = 10        -- 跳跃动画帧率
+local PLAYER_WIDTH = 0.7   -- 精灵宽度（米）
+local PLAYER_HEIGHT = 2.4  -- 精灵高度（米）
+local SPRITE_OFFSET_Y = -0.6  -- 精灵视觉下移，让脚踩草地
+
 function Player:new(scene, inputManager)
+    ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, Player)
     self.inputManager = inputManager
     self.jumpCount = 0
@@ -40,11 +55,17 @@ function Player:new(scene, inputManager)
     -- 攻击
     self.attackCooldown = 0
     self.attackPressed = false
-    self.targetEnemy = nil  -- 需要外部设置
+    self.targetEnemy = nil
     -- 下砸攻击
     self.slamming = false
     -- 施法状态（卡牌使用时锁定移动）
     self.castingCard = false
+    -- 精灵动画状态
+    self.animTime = 0
+    self.currentFrame = 0
+    self.facingRight = true
+    self.isMoving = false
+    self.currentAnim = "idle"
     self.physicsWorld = scene:GetComponent("PhysicsWorld2D")
     self:_createNode(scene)
     return self
@@ -54,13 +75,40 @@ function Player:_createNode(scene)
     self.node = scene:CreateChild("Player")
     self.node.position = Vector3(0, -1.9, 0)
 
-    -- 可视化 - 蓝色方块角色
-    self.sprite = self.node:CreateComponent("StaticSprite2D")
-    self.sprite:SetSprite(cache:GetResource("Sprite2D", "Urho2D/Box.png"))
-    self.sprite.color = Color(0.2, 0.4, 0.9, 1.0)
-    self.sprite.drawRect = Rect(-0.4, -0.6, 0.4, 0.6)
-    self.normalColor = Color(0.2, 0.4, 0.9, 1.0)
-    self.nearDeathColor = Color(0.1, 0.15, 0.35, 1.0)
+    -- 创建精灵子节点（Plane 模型 + 材质 渲染精灵图）
+    self.spriteNode = self.node:CreateChild("Sprite")
+    self.spriteNode.rotation = Quaternion(-90, Vector3(1, 0, 0))
+    self.spriteNode.scale = Vector3(PLAYER_WIDTH, 1.0, PLAYER_HEIGHT)
+    self.spriteNode.position = Vector3(0, SPRITE_OFFSET_Y, 0)
+
+    -- 加载三套纹理
+    self.walkTexture = cache:GetResource("Texture2D", WALK_SHEET)
+    self.idleTexture = cache:GetResource("Texture2D", IDLE_SHEET)
+    self.jumpTexture = cache:GetResource("Texture2D", JUMP_SHEET)
+
+    if self.walkTexture == nil then
+        log:Write(LOG_ERROR, "[Player] Failed to load walk texture: " .. WALK_SHEET)
+        -- 回退到蓝色方块
+        local sprite = self.node:CreateComponent("StaticSprite2D")
+        sprite:SetSprite(cache:GetResource("Sprite2D", "Urho2D/Box.png"))
+        sprite.color = Color(0.2, 0.4, 0.9, 1.0)
+        sprite.drawRect = Rect(-0.3, -1.35, 0.3, 1.05)
+    else
+        -- 创建材质（DiffAlpha 支持透明）
+        self.material = Material:new()
+        self.material:SetTechnique(0, cache:GetResource("Technique", "Techniques/DiffAlpha.xml"))
+        self.material:SetTexture(0, self.idleTexture or self.walkTexture)
+        self.material:SetShaderParameter("MatDiffColor", Variant(Color(1, 1, 1, 1)))
+        self.material:SetShaderParameter("UOffset", Variant(Vector4(1.0 / IDLE_COLS, 0, 0, 0)))
+        self.material:SetShaderParameter("VOffset", Variant(Vector4(0, 1.0, 0, 0)))
+
+        local model = self.spriteNode:CreateComponent("StaticModel")
+        model:SetModel(cache:GetResource("Model", "Models/Plane.mdl"))
+        model:SetMaterial(self.material)
+        self.spriteModel = model
+
+        log:Write(LOG_INFO, "[Player] Sprite textures loaded (walk/idle/jump)")
+    end
 
     -- 物理
     self.body = self.node:CreateComponent("RigidBody2D")
@@ -69,7 +117,7 @@ function Player:_createNode(scene)
     self.body.linearDamping = 0.5
 
     local shape = self.node:CreateComponent("CollisionBox2D")
-    shape.size = Vector2(0.8, 1.2)
+    shape.size = Vector2(0.5, 1.4)
     shape.density = 1.0
     shape.friction = 0.3
 
@@ -97,6 +145,7 @@ function Player:update(dt)
     -- 施法状态：锁定水平移动，保持物理
     if self.castingCard then
         self.body:SetLinearVelocity(Vector2(0, velocity.y))
+        self:_updateAnimation(dt)
         return
     end
 
@@ -107,6 +156,7 @@ function Player:update(dt)
         if self.isGrounded then
             self:_slamLand()
         end
+        self:_updateAnimation(dt)
         return
     end
 
@@ -116,8 +166,14 @@ function Player:update(dt)
     local speedMult = self.nearDeath and NEAR_DEATH_SPEED_MULT or 1.0
     if self.inputManager:isActionActive(InputManager.ACTION_LEFT) then
         desiredVelX = -MOVE_SPEED * speedMult
+        self.facingRight = false
+        self.isMoving = true
     elseif self.inputManager:isActionActive(InputManager.ACTION_RIGHT) then
         desiredVelX = MOVE_SPEED * speedMult
+        self.facingRight = true
+        self.isMoving = true
+    else
+        self.isMoving = false
     end
 
     self.body:SetLinearVelocity(Vector2(desiredVelX, velocity.y))
@@ -162,6 +218,76 @@ function Player:update(dt)
         end
     end
     self.attackPressed = attackAction
+
+    -- 更新精灵动画
+    self:_updateAnimation(dt)
+end
+
+-- 精灵动画更新
+function Player:_updateAnimation(dt)
+    if self.material == nil then return end
+
+    -- 确定当前应该播放的动画状态（优先级：jump > walk > idle）
+    local targetAnim
+    if not self.isGrounded then
+        targetAnim = "jump"
+    elseif self.isMoving then
+        targetAnim = "walk"
+    else
+        targetAnim = "idle"
+    end
+
+    local cols, fps
+    if targetAnim == "jump" then
+        cols = JUMP_COLS
+        fps = JUMP_FPS
+    elseif targetAnim == "walk" then
+        cols = WALK_COLS
+        fps = ANIM_FPS
+    else
+        cols = IDLE_COLS
+        fps = IDLE_FPS
+    end
+
+    -- 切换动画状态时，重置帧并切换纹理
+    if targetAnim ~= self.currentAnim then
+        self.currentAnim = targetAnim
+        self.currentFrame = 0
+        self.animTime = 0
+        if targetAnim == "jump" and self.jumpTexture then
+            self.material:SetTexture(0, self.jumpTexture)
+        elseif targetAnim == "idle" and self.idleTexture then
+            self.material:SetTexture(0, self.idleTexture)
+        else
+            self.material:SetTexture(0, self.walkTexture)
+        end
+    end
+
+    -- 播放动画帧
+    self.animTime = self.animTime + dt
+    local frameDuration = 1.0 / fps
+    if self.animTime >= frameDuration then
+        self.animTime = self.animTime - frameDuration
+        if targetAnim == "jump" then
+            -- 跳跃动画不循环，停在最后一帧
+            if self.currentFrame < cols - 1 then
+                self.currentFrame = self.currentFrame + 1
+            end
+        else
+            self.currentFrame = (self.currentFrame + 1) % cols
+        end
+    end
+
+    -- 更新 UV offset 显示当前帧
+    local uOffset = self.currentFrame / cols
+    local uScale = 1.0 / cols
+
+    -- 翻转方向：通过 UOffset 的 scale 符号控制
+    if self.facingRight then
+        self.material:SetShaderParameter("UOffset", Variant(Vector4(uScale, 0, 0, uOffset)))
+    else
+        self.material:SetShaderParameter("UOffset", Variant(Vector4(-uScale, 0, 0, uOffset + uScale)))
+    end
 end
 
 -- 执行平A攻击（查找范围内最近的存活敌人）
@@ -193,7 +319,6 @@ end
 function Player:_enterSlam()
     self.slamming = true
     self.attackCooldown = ATTACK_COOLDOWN
-    -- 停止水平速度，快速下落
     self.body:SetLinearVelocity(Vector2(0, -SLAM_SPEED))
     log:Write(LOG_INFO, "[Player] Slam attack started!")
 end
@@ -212,9 +337,7 @@ function Player:_slamLand()
             local enemyPos = e.node.position
             local dist = math.abs(myPos.x - enemyPos.x)
             if dist <= SLAM_AOE_RANGE then
-                -- 造成AOE伤害
                 e:takeDamage(SLAM_DAMAGE)
-                -- 击飞：向远离玩家的方向施加冲量
                 if e:isAlive() and e.body then
                     local dir = enemyPos.x > myPos.x and 1 or -1
                     e.body:ApplyLinearImpulseToCenter(Vector2(SLAM_KNOCKBACK * dir, SLAM_KNOCKBACK * 0.6), true)
@@ -230,17 +353,20 @@ function Player:_updateInvincible(dt)
     self.invincibleTimer = self.invincibleTimer - dt
     self.blinkTimer = self.blinkTimer + dt
 
-    -- 闪烁：交替显示/隐藏
+    -- 闪烁：交替显示/隐藏精灵节点
     if self.blinkTimer >= BLINK_INTERVAL then
         self.blinkTimer = 0
-        local isEnabled = self.sprite:IsEnabled()
-        self.sprite:SetEnabled(not isEnabled)
+        if self.spriteNode then
+            self.spriteNode.enabled = not self.spriteNode.enabled
+        end
     end
 
     -- 无敌时间结束
     if self.invincibleTimer <= 0 then
         self.invincible = false
-        self.sprite:SetEnabled(true)
+        if self.spriteNode then
+            self.spriteNode.enabled = true
+        end
         log:Write(LOG_INFO, "[Player] Invincible OFF")
     end
 end
@@ -251,12 +377,13 @@ function Player:_updateDeath(dt)
 
     -- 阶段1: 倒地（旋转倒下）
     if self.deathTimer < 0.5 then
-        local rotation = self.node.rotation
         self.node.rotation = Quaternion(0, 0, self.deathTimer * 180)
     -- 阶段2: 视觉剥夺（变暗消失）
     elseif self.deathTimer < 1.5 then
         local fade = 1.0 - (self.deathTimer - 0.5)
-        self.sprite.color = Color(0.1, 0.1, 0.1, math.max(0, fade))
+        if self.material then
+            self.material:SetShaderParameter("MatDiffColor", Variant(Color(0.1, 0.1, 0.1, math.max(0, fade))))
+        end
     -- 阶段3: 触发 Game Over
     else
         if self.gameOverCallback then
@@ -278,16 +405,16 @@ function Player:takeDamage(amount)
     log:Write(LOG_INFO, "[Player] Took damage, HP=" .. self.hp)
 
     if self.hp <= 0 then
-        -- 死亡
         self:_enterDeath()
         return true
     elseif self.hp == 1 then
-        -- 濒死：颜色变暗
+        -- 濒死：材质颜色变暗
         self.nearDeath = true
-        self.sprite.color = self.nearDeathColor
+        if self.material then
+            self.material:SetShaderParameter("MatDiffColor", Variant(Color(0.4, 0.3, 0.3, 1.0)))
+        end
         self:_enterInvincible()
     else
-        -- 普通受伤：进入无敌帧
         self:_enterInvincible()
     end
     return false
@@ -329,9 +456,8 @@ end
 -- 射线检测玩家是否着地
 function Player:_checkGrounded()
     local pos = self.node.position
-    -- 从玩家脚底位置向下发射短射线
-    local startPoint = Vector2(pos.x, pos.y - 0.6)  -- 碰撞体底部
-    local endPoint = Vector2(pos.x, pos.y - 0.7)    -- 向下多探测0.1米
+    local startPoint = Vector2(pos.x, pos.y - 0.7)
+    local endPoint = Vector2(pos.x, pos.y - 0.8)
 
     local result = self.physicsWorld:RaycastSingle(startPoint, endPoint)
     if result.body ~= nil and result.body ~= self.body then
@@ -355,10 +481,19 @@ function Player:reset()
     self.attackPressed = false
     self.slamming = false
     self.castingCard = false
+    self.isMoving = false
+    self.currentAnim = "idle"
+    self.currentFrame = 0
+    self.animTime = 0
     self.node.position = Vector3(0, -1.9, 0)
     self.node.rotation = Quaternion(0, 0, 0)
-    self.sprite:SetEnabled(true)
-    self.sprite.color = self.normalColor
+    if self.spriteNode then
+        self.spriteNode.enabled = true
+    end
+    if self.material then
+        self.material:SetShaderParameter("MatDiffColor", Variant(Color(1, 1, 1, 1)))
+        self.material:SetTexture(0, self.idleTexture or self.walkTexture)
+    end
     self.body:SetLinearVelocity(Vector2(0, 0))
     log:Write(LOG_INFO, "[Player] Reset to initial state")
 end

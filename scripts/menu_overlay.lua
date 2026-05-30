@@ -3,6 +3,7 @@ MenuOverlay = {}
 MenuOverlay.__index = MenuOverlay
 
 function MenuOverlay:new()
+    ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, MenuOverlay)
     self.visible = true
     self.panel = nil

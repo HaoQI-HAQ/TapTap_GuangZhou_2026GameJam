@@ -47,6 +47,7 @@ local COUNTER_TABLE = {
 }
 
 function CardSystem:new()
+    ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, CardSystem)
     self.hand = {}              -- 当前手牌 [{type, element, elementData}]
     self.refreshTimer = REFRESH_INTERVAL   -- 刷新倒计时

@@ -9,6 +9,7 @@ local CARD_GAP = 5             -- 卡牌间距
 local CARD_AREA_PADDING = 5    -- 卡牌区域内边距
 
 function CardUI:new(cardSystem)
+    ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, CardUI)
     self.cardSystem = cardSystem
     self.cardButtons = {}       -- 卡牌按钮引用

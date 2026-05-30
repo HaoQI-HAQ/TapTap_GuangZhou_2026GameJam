@@ -5,6 +5,7 @@ GameUI.__index = GameUI
 local COUNTDOWN_TIME = 5.0  -- 倒计时秒数
 
 function GameUI:new(inputManager, player)
+    ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, GameUI)
     self.inputManager = inputManager
     self.player = player

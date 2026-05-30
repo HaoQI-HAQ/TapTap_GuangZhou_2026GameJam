@@ -123,6 +123,13 @@ function CreateScene()
 
     physicsWorld_ = scene_:CreateComponent("PhysicsWorld2D")
     physicsWorld_.gravity = Vector2(0, -9.81)
+
+    -- 方向光（DiffAlpha 材质需要光照才能正确显示精灵颜色）
+    local lightNode = scene_:CreateChild("DirectionalLight")
+    local light = lightNode:CreateComponent("Light")
+    light.lightType = LIGHT_DIRECTIONAL
+    light.color = Color(1, 1, 1, 1)
+    lightNode.direction = Vector3(0, 0, 1)
 end
 
 function SetupCamera()

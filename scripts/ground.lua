@@ -3,6 +3,7 @@ Ground = {}
 Ground.__index = Ground
 
 function Ground:new(scene, x, y, width, height)
+    ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, Ground)
     self:_createNode(scene, x, y, width, height)
     return self
