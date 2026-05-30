@@ -57,9 +57,10 @@ function CardUI:_createCardSlot(index)
     local btn = Button:new()
     self.container:AddChild(btn)
     btn:SetStyle("none")  -- 不使用 DefaultStyle 灰色纹理
+    btn.color = Color(0, 0, 0, 0)  -- 按钮自身完全透明，不遮盖子元素
     btn:SetSize(CARD_WIDTH, CARD_HEIGHT)
     btn:SetPosition(x, 0)
-    btn:SetOpacity(0.9)
+    btn:SetOpacity(1.0)
 
     -- 卡牌图片（使用card文件夹下的图片）
     local cardImage = BorderImage:new()
@@ -146,11 +147,11 @@ function CardUI:_refreshCards(hand)
             slot.elementBar.color = Color(0.5, 0.5, 0.5, 1.0)
         end
 
-        -- 冷却中的卡牌显示更透明
+        -- 冷却中的卡牌显示更透明（控制图片透明度，不改btn）
         if self.cardSystem.cooldowns[info.cardId] then
-            slot.btn:SetOpacity(0.3)
+            slot.cardImage:SetOpacity(0.3)
         else
-            slot.btn:SetOpacity(0.6)
+            slot.cardImage:SetOpacity(1.0)
         end
     end
 end

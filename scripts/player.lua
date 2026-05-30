@@ -129,12 +129,14 @@ function Player:_createNode(scene)
     local MASK_NO_ENEMY = 65531     -- 0xFFFF & ~4 = 0xFFFB，永久排除敌人碰撞
 
     -- 胶囊碰撞体：矩形中段 + 上下两个圆形
+    -- 总体：宽0.5m，高1.0m，上0m，下1.0m（非对称）
     local radius = 0.25  -- 半径 = 宽度/2
-    local boxH = 1.4 - radius * 2  -- 中段矩形高度
+    local boxH = 0.5     -- 中段矩形高度
+    local boxCenterY = -0.5  -- 矩形中心偏下
 
     local boxShape = self.node:CreateComponent("CollisionBox2D")
     boxShape.size = Vector2(0.5, boxH)
-    boxShape.center = Vector2(0, 0)
+    boxShape.center = Vector2(0, boxCenterY)
     boxShape.density = 1.0
     boxShape.friction = 0.3
     boxShape.categoryBits = 2  -- CATEGORY_PLAYER
@@ -142,7 +144,7 @@ function Player:_createNode(scene)
 
     local topCircle = self.node:CreateComponent("CollisionCircle2D")
     topCircle.radius = radius
-    topCircle.center = Vector2(0, boxH / 2)
+    topCircle.center = Vector2(0, boxCenterY + boxH / 2)  -- (0, 0.45)
     topCircle.density = 1.0
     topCircle.friction = 0.3
     topCircle.categoryBits = 2  -- CATEGORY_PLAYER
@@ -150,7 +152,7 @@ function Player:_createNode(scene)
 
     local bottomCircle = self.node:CreateComponent("CollisionCircle2D")
     bottomCircle.radius = radius
-    bottomCircle.center = Vector2(0, -boxH / 2)
+    bottomCircle.center = Vector2(0, boxCenterY - boxH / 2)  -- (0, -0.75)
     bottomCircle.density = 1.0
     bottomCircle.friction = 0.0  -- 底部零摩擦，防止卡边
     bottomCircle.categoryBits = 2  -- CATEGORY_PLAYER
@@ -165,7 +167,7 @@ function Player:_createNode(scene)
     self.sfxSource.gain = 1.0
     self.sfxWalkSource = self.node:CreateComponent("SoundSource")
     self.sfxWalkSource:SetSoundType(SOUND_EFFECT)
-    self.sfxWalkSource.gain = 0.6
+    self.sfxWalkSource.gain = 1.2
 
     self.sndAttack = cache:GetResource("Sound", "audio/sfx/player_attack.ogg")
     self.sndDropAttack = cache:GetResource("Sound", "audio/sfx/player_drop_attack.ogg")
@@ -665,8 +667,8 @@ end
 -- 射线检测玩家是否着地
 function Player:_checkGrounded()
     local pos = self.node.position
-    local startPoint = Vector2(pos.x, pos.y - 0.7)
-    local endPoint = Vector2(pos.x, pos.y - 0.8)
+    local startPoint = Vector2(pos.x, pos.y - 1.0)
+    local endPoint = Vector2(pos.x, pos.y - 1.1)
 
     local result = self.physicsWorld:RaycastSingle(startPoint, endPoint)
     if result.body ~= nil and result.body ~= self.body then

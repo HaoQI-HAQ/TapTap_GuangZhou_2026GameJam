@@ -37,6 +37,7 @@ local ENEMY_WALK_TEXTURES = {
 -- 小怪攻击动画贴图（按属性）
 local ENEMY_ATK_TEXTURES = {
     ice = { path = "image/Enemy/ice/enemy_ice_atk.png", framePx = 200, texW = 800, texH = 339, frames = 4, facesLeft = false },
+    grass = { path = "image/Enemy/grass/enemy_grass_atk.png", framePx = 200, texW = 800, texH = 200, frames = 4, facesLeft = true },
 }
 local ENEMY_ATK_FPS = 8  -- 攻击动画帧率
 
@@ -212,16 +213,17 @@ function Enemy:_createNode(scene, x, y)
     self.body.linearDamping = 0.5
 
     if self.isBoss then
-        -- Boss：胶囊碰撞体（按boss尺寸缩放）
-        local bossRadius = halfW  -- 半径=半宽=1.2
-        local bossBoxH = halfH * 2 - bossRadius * 2  -- 中段高度
-        if bossBoxH < 0.1 then bossBoxH = 0.1 end
+        -- Boss：胶囊碰撞体（对称，近似大圆球）
+        -- 总体：宽2.2m，高2.2m，上1.1m，下1.1m
+        local bossRadius = 1.1
+        local bossBoxH = 0.1  -- 极小中段，近似圆球
 
-        -- maskBits: 排除玩家(2)，与地面(1)+敌人(4)碰撞 = 0xFFFF & ~2 = 65533
-        local MASK_NO_PLAYER = 65533
+        -- maskBits: 排除玩家(2)和敌人(4)，只与地面(1)碰撞，防止被小怪顶起
+        -- 0xFFFF & ~2 & ~4 = 65529
+        local MASK_NO_PLAYER = 65529
 
         local boxShape = self.node:CreateComponent("CollisionBox2D")
-        boxShape.size = Vector2(halfW * 2, bossBoxH)
+        boxShape.size = Vector2(bossRadius * 2, bossBoxH)
         boxShape.center = Vector2(0, 0)
         boxShape.density = 1.0
         boxShape.friction = 0.0
@@ -281,25 +283,28 @@ end
 -- 头顶血条UI
 function Enemy:_createHpBar()
     local uiRoot = ui.root
+    local barW = self.isBoss and 120 or 60  -- Boss血条更宽
 
     self.hpBarContainer = UIElement:new()
     uiRoot:AddChild(self.hpBarContainer)
-    self.hpBarContainer:SetSize(60, 30)
+    self.hpBarContainer:SetSize(barW, 30)
     self.hpBarContainer:SetAlignment(HA_LEFT, VA_TOP)
 
     -- 血条背景（深灰色）
     local bgBar = BorderImage:new()
     self.hpBarContainer:AddChild(bgBar)
-    bgBar:SetSize(60, 10)
+    bgBar:SetSize(barW, 10)
     bgBar:SetPosition(0, 18)
     bgBar.color = Color(0.2, 0.2, 0.2, 0.9)
 
     -- 血条填充（红色）
     self.hpBarFill = BorderImage:new()
     self.hpBarContainer:AddChild(self.hpBarFill)
-    self.hpBarFill:SetSize(60, 10)
+    self.hpBarFill:SetSize(barW, 10)
     self.hpBarFill:SetPosition(0, 18)
     self.hpBarFill.color = Color(1.0, 0.1, 0.1, 1.0)
+
+    self.hpBarWidth = barW  -- 保存宽度用于更新
 end
 
 
@@ -501,6 +506,7 @@ end
 function Enemy:_endSkill()
     self.skillActive = false
     self.skillTimer = 0  -- 重置CD
+    self.chasing = true  -- 大招结束后继续追玩家
     -- 隐藏技能特效节点
     if self.skillNode then
         self.skillNode.enabled = false
@@ -639,16 +645,21 @@ function Enemy:update(dt)
         end
     end
 
-    -- Boss行走动画帧更新
+    -- Boss行走动画帧更新（攻击状态时停止行走动画）
     if self.isBoss and self.bossMaterial and self.bossWalkFrames then
-        self.bossWalkFrameTimer = self.bossWalkFrameTimer + dt
-        local frameDur = 1.0 / self.bossWalkFPS
-        if self.bossWalkFrameTimer >= frameDur then
-            self.bossWalkFrameTimer = self.bossWalkFrameTimer - frameDur
-            self.bossWalkCurrentFrame = (self.bossWalkCurrentFrame + 1) % self.bossWalkFrames
-            local frameU = 1.0 / self.bossWalkFrames
-            local offsetU = self.bossWalkCurrentFrame * frameU
-            self.bossMaterial:SetShaderParameter("UOffset", Variant(Vector4(frameU, 0, 0, offsetU)))
+        if self.attacking then
+            -- 攻击状态：停在当前帧，不更新动画
+            self.bossWalkFrameTimer = 0
+        else
+            self.bossWalkFrameTimer = self.bossWalkFrameTimer + dt
+            local frameDur = 1.0 / self.bossWalkFPS
+            if self.bossWalkFrameTimer >= frameDur then
+                self.bossWalkFrameTimer = self.bossWalkFrameTimer - frameDur
+                self.bossWalkCurrentFrame = (self.bossWalkCurrentFrame + 1) % self.bossWalkFrames
+                local frameU = 1.0 / self.bossWalkFrames
+                local offsetU = self.bossWalkCurrentFrame * frameU
+                self.bossMaterial:SetShaderParameter("UOffset", Variant(Vector4(frameU, 0, 0, offsetU)))
+            end
         end
     end
 
@@ -717,6 +728,8 @@ function Enemy:update(dt)
 
     -- 更新伤害飘字动画
     self:_updateFloatingTexts(dt)
+
+
 end
 
 -- 检测前方是否有友军挡路（dir: 1=右, -1=左）
@@ -749,18 +762,20 @@ function Enemy:_updateHpBar()
     if self.hpBarContainer == nil or self.camera == nil then return end
 
     local worldPos = self.node.position
-    -- 头顶偏移（碰撞体高1.2，顶部+0.2留空）
-    local headPos = Vector3(worldPos.x, worldPos.y + 1.2, worldPos.z)
+    -- 头顶偏移（Boss碰撞体高2.2上方1.1，普通敌人高1.2）
+    local headOffset = self.isBoss and 1.4 or 1.2
+    local headPos = Vector3(worldPos.x, worldPos.y + headOffset, worldPos.z)
 
     local screenPos = self.camera:WorldToScreenPoint(headPos)
-    local screenX = screenPos.x * graphics.width - 30  -- 居中偏移(血条宽60/2)
+    local barW = self.hpBarWidth or 60
+    local screenX = screenPos.x * graphics.width - barW / 2  -- 居中偏移
     local screenY = screenPos.y * graphics.height
 
     self.hpBarContainer:SetPosition(screenX, screenY)
 
     -- 更新血条长度
     local ratio = self.hp / self.maxHp
-    self.hpBarFill:SetSize(math.floor(60 * ratio), 10)
+    self.hpBarFill:SetSize(math.floor(barW * ratio), 10)
 end
 
 -- 受伤
