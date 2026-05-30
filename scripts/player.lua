@@ -13,15 +13,17 @@ function Player:new(scene, inputManager)
     self.inputManager = inputManager
     self.jumpCount = 0
     self.jumpPressed = false
+    self.isGrounded = false
     self.hp = MAX_HP
     self.maxHp = MAX_HP
+    self.physicsWorld = scene:GetComponent("PhysicsWorld2D")
     self:_createNode(scene)
     return self
 end
 
 function Player:_createNode(scene)
     self.node = scene:CreateChild("Player")
-    self.node.position = Vector3(0, 2.0, 0)
+    self.node.position = Vector3(0, -1.9, 0)
 
     -- 可视化 - 蓝色方块角色
     local sprite = self.node:CreateComponent("StaticSprite2D")
@@ -65,8 +67,9 @@ function Player:update(dt)
         self.body:ApplyForceToCenter(Vector2(0, -9.81 * FALL_MULTIPLIER), true)
     end
 
-    -- 着地检测
-    if math.abs(velocity.y) < 0.05 then
+    -- 着地检测：从玩家脚底向下射线检测
+    self.isGrounded = self:_checkGrounded()
+    if self.isGrounded then
         self.jumpCount = 0
     end
 
@@ -104,6 +107,30 @@ end
 
 function Player:isDead()
     return self.hp <= 0
+end
+
+-- 射线检测玩家是否着地
+function Player:_checkGrounded()
+    local pos = self.node.position
+    -- 从玩家脚底位置向下发射短射线
+    local startPoint = Vector2(pos.x, pos.y - 0.6)  -- 碰撞体底部
+    local endPoint = Vector2(pos.x, pos.y - 0.7)    -- 向下多探测0.1米
+
+    local result = self.physicsWorld:RaycastSingle(startPoint, endPoint)
+    if result.body ~= nil and result.body ~= self.body then
+        return true
+    end
+    return false
+end
+
+function Player:reset()
+    self.hp = MAX_HP
+    self.jumpCount = 0
+    self.jumpPressed = false
+    self.isGrounded = false
+    self.node.position = Vector3(0, -1.9, 0)
+    self.body:SetLinearVelocity(Vector2(0, 0))
+    log:Write(LOG_INFO, "[Player] Reset to initial state")
 end
 
 function Player:getPosition()
