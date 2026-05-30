@@ -43,6 +43,8 @@ function Player:new(scene, inputManager)
     self.targetEnemy = nil  -- 需要外部设置
     -- 下砸攻击
     self.slamming = false
+    -- 施法状态（卡牌使用时锁定移动）
+    self.castingCard = false
     self.physicsWorld = scene:GetComponent("PhysicsWorld2D")
     self:_createNode(scene)
     return self
@@ -91,6 +93,12 @@ function Player:update(dt)
     end
 
     local velocity = self.body:GetLinearVelocity()
+
+    -- 施法状态：锁定水平移动，保持物理
+    if self.castingCard then
+        self.body:SetLinearVelocity(Vector2(0, velocity.y))
+        return
+    end
 
     -- 下砸状态：强制高速下落，着地时触发AOE
     if self.slamming then
@@ -346,6 +354,7 @@ function Player:reset()
     self.attackCooldown = 0
     self.attackPressed = false
     self.slamming = false
+    self.castingCard = false
     self.node.position = Vector3(0, -1.9, 0)
     self.node.rotation = Quaternion(0, 0, 0)
     self.sprite:SetEnabled(true)

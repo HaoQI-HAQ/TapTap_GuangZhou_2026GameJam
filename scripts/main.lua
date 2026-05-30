@@ -6,6 +6,8 @@ require "scripts/ground"
 require "scripts/game_ui"
 require "scripts/enemy"
 require "scripts/menu_overlay"
+require "scripts/card_system"
+require "scripts/card_ui"
 
 local scene_ = nil
 local cameraNode = nil
@@ -16,6 +18,8 @@ local inputManager = nil
 local menuOverlay = nil
 local physicsWorld_ = nil
 local enemies = {}
+local cardSystem = nil
+local cardUI = nil
 
 function Start()
     SampleStart()
@@ -45,6 +49,54 @@ function Start()
     -- 创建游戏UI（含BACK按钮，默认隐藏）
     gameUI = GameUI:new(inputManager, player)
 
+    -- 创建卡牌系统
+    cardSystem = CardSystem:new()
+    cardUI = CardUI:new(cardSystem)
+    gameUI.cardSystem = cardSystem  -- 绑定卡牌倒计时到顶部UI
+
+    -- 卡牌系统回调：施法开始/结束通知玩家
+    cardSystem.onCastStart = function()
+        player.castingCard = true
+    end
+    cardSystem.onCastEnd = function()
+        player.castingCard = false
+    end
+    -- 卡牌使用效果回调
+    cardSystem.onCardUsed = function(card)
+        -- 根据卡牌类型执行效果
+        if card.type == CardSystem.TYPE_ATTACK then
+            -- 攻击型：对最近敌人造成伤害（克制加倍）
+            local myPos = player:getPosition()
+            local nearestEnemy = nil
+            local nearestDist = 3.0  -- 卡牌攻击范围比平A远
+            for _, e in ipairs(enemies) do
+                if e:isAlive() and e.node then
+                    local dist = math.abs(myPos.x - e.node.position.x)
+                    if dist < nearestDist then
+                        nearestDist = dist
+                        nearestEnemy = e
+                    end
+                end
+            end
+            if nearestEnemy then
+                local dmg = 2
+                if cardSystem:isCounter(card.element, nearestEnemy.element) then
+                    dmg = 4  -- 克制加倍
+                    log:Write(LOG_INFO, "[Card] Counter! " .. card.element .. " > " .. nearestEnemy.element)
+                end
+                nearestEnemy:takeDamage(dmg)
+            end
+        elseif card.type == CardSystem.TYPE_DEFENSE then
+            -- 防御型：给予玩家短暂无敌
+            player.invincible = true
+            player.invincibleTimer = 2.0
+            player.blinkTimer = 0
+        elseif card.type == CardSystem.TYPE_SUPPORT then
+            -- 辅助型：回复1点HP
+            player:heal(1)
+        end
+    end
+
     -- 设置玩家死亡回调
     player.gameOverCallback = function()
         ShowGameOver()
@@ -56,7 +108,8 @@ function Start()
     -- Game Over UI（默认隐藏）
     _createGameOverUI()
 
-    -- 初始状态：菜单显示，物理暂停
+    -- 初始状态：菜单显示，物理暂停，卡牌隐藏
+    cardUI:hide()
     physicsWorld_.enabled = false
 
     SubscribeToEvent("Update", "HandleUpdate")
@@ -96,6 +149,8 @@ function EnterGame()
     physicsWorld_.enabled = true
     gameUI:show()
     gameUI:resetCountdown()
+    cardSystem:reset()
+    cardUI:show()
     log:Write(LOG_INFO, "[Game] Enter game scene")
 end
 
@@ -103,6 +158,7 @@ end
 function ReturnToMenu()
     physicsWorld_.enabled = false
     gameUI:hide()
+    cardUI:hide()
     for _, e in ipairs(enemies) do
         e:hideHpBar()
     end
@@ -159,6 +215,23 @@ function HandleUIAttackReleased(eventType, eventData)
     inputManager:setTouchAction(InputManager.ACTION_ATTACK, false)
 end
 
+-- 卡牌按钮点击回调（5个槽位）
+function HandleCardBtn1(eventType, eventData)
+    cardSystem:useCard(1)
+end
+function HandleCardBtn2(eventType, eventData)
+    cardSystem:useCard(2)
+end
+function HandleCardBtn3(eventType, eventData)
+    cardSystem:useCard(3)
+end
+function HandleCardBtn4(eventType, eventData)
+    cardSystem:useCard(4)
+end
+function HandleCardBtn5(eventType, eventData)
+    cardSystem:useCard(5)
+end
+
 function HandleUpdate(eventType, eventData)
     local dt = eventData["TimeStep"]:GetFloat()
 
@@ -177,6 +250,10 @@ function HandleUpdate(eventType, eventData)
     for _, e in ipairs(enemies) do
         e:update(dt)
     end
+
+    -- 更新卡牌系统
+    cardSystem:update(dt)
+    cardUI:update(dt)
 
     -- 更新UI（血量显示+倒计时）
     gameUI:update(dt)
@@ -244,6 +321,7 @@ function ShowGameOver()
     end
     physicsWorld_.enabled = false
     gameUI:hide()
+    cardUI:hide()
     for _, e in ipairs(enemies) do
         e:hideHpBar()
     end

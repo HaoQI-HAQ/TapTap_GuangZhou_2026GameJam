@@ -12,6 +12,7 @@ function GameUI:new(inputManager, player)
     self.elements = {}  -- 追踪所有UI元素用于显示/隐藏
     self.countdown = COUNTDOWN_TIME
     self.countdownText = nil
+    self.cardSystem = nil  -- 可选：绑定卡牌系统后用卡牌倒计时
     self:_setup()
     return self
 end
@@ -187,10 +188,14 @@ function GameUI:update(dt)
         end
     end
 
-    -- 更新倒计时
-    self.countdown = self.countdown - dt
-    if self.countdown <= 0 then
-        self.countdown = COUNTDOWN_TIME
+    -- 更新倒计时（如果绑定了卡牌系统则同步其倒计时）
+    if self.cardSystem then
+        self.countdown = self.cardSystem:getRefreshTimer()
+    else
+        self.countdown = self.countdown - dt
+        if self.countdown <= 0 then
+            self.countdown = COUNTDOWN_TIME
+        end
     end
     self.countdownText.text = tostring(math.ceil(self.countdown))
 end
