@@ -1,4 +1,17 @@
-Lua Errors: 0 | Dir: /workspace/scripts | Time: 2026-05-29 20:52:32
+Lua Errors: 14 | Dir: /workspace/scripts | Time: 2026-05-30 10:54:43
 EmmyLua Types: /workspace/.emmylua
 ---
-✅ No errors
+ERROR | card_system.lua:16:11 | Redefined local `self`. [redefined-local]
+ERROR | enemy.lua:16:11 | Redefined local `self`. [redefined-local]
+ERROR | game_ui.lua:6:11 | Redefined local `self`. [redefined-local]
+ERROR | ground.lua:6:11 | Redefined local `self`. [redefined-local]
+ERROR | input_manager.lua:17:11 | Redefined local `self`. [redefined-local]
+ERROR | main.lua:61:33 | Undefined global `InputManager`. [undefined-global]
+ERROR | main.lua:65:33 | Undefined global `InputManager`. [undefined-global]
+ERROR | main.lua:69:33 | Undefined global `InputManager`. [undefined-global]
+ERROR | main.lua:73:33 | Undefined global `InputManager`. [undefined-global]
+ERROR | main.lua:77:33 | Undefined global `InputManager`. [undefined-global]
+ERROR | main.lua:81:33 | Undefined global `InputManager`. [undefined-global]
+ERROR | main.lua:19:20 | Undefined global `InputManager`. [undefined-global]
+ERROR | main.lua:25:14 | Undefined global `Player`. [undefined-global]
+ERROR | player.lua:21:11 | Redefined local `self`. [redefined-local]
