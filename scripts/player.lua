@@ -22,13 +22,13 @@ local SLAM_KNOCKBACK = 8.0        -- 击飞力度
 -- 精灵图配置
 local WALK_SHEET = "image/Player/player_walk.png"
 local IDLE_SHEET = "image/Player/player_idle.png"
-local JUMP_SHEET = "image/Player/player_walk.png"  -- 暂用行走图代替跳跃
+local JUMP_SHEET = "image/Player/jump.png"
 local WALK_COLS = 6        -- 行走6帧
 local IDLE_COLS = 6        -- 待机6帧
-local JUMP_COLS = 6        -- 跳跃6帧（暂用行走代替）
+local JUMP_COLS = 6        -- 跳跃6帧
 local ANIM_FPS = 10        -- 行走动画帧率
-local IDLE_FPS = 6         -- 待机动画帧率
-local JUMP_FPS = 10        -- 跳跃动画帧率
+local IDLE_FPS = 0.67      -- 待机动画帧率（每1.5秒换一帧）
+local JUMP_FPS = 12        -- 跳跃动画帧率
 local PLAYER_WIDTH = 0.7   -- 精灵宽度（米）
 local PLAYER_HEIGHT = 2.4  -- 精灵高度（米）
 local SPRITE_OFFSET_Y = -0.6  -- 精灵视觉下移，让脚踩草地
