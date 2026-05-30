@@ -50,8 +50,8 @@ function InputManager:new()
         [2] = InputManager.ACTION_JUMP    -- X按钮（跳跃备选）
     }
 
-    -- 手柄摇杆死区
-    self.deadZone = 0.2
+    -- 手柄摇杆死区（WASM环境虚拟手柄可能有轴漂移，设大一些）
+    self.deadZone = 0.6
 
     log:Write(LOG_INFO, "[InputManager] Created with keyboard/touch/gamepad support")
     return self
