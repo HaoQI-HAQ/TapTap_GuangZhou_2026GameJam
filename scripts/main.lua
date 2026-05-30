@@ -8,6 +8,7 @@ require "scripts/enemy"
 require "scripts/menu_overlay"
 require "scripts/card_system"
 require "scripts/card_ui"
+require "scripts/senses_system"
 
 local scene_ = nil
 local cameraNode = nil
@@ -20,6 +21,7 @@ local physicsWorld_ = nil
 local enemies = {}
 local cardSystem = nil
 local cardUI = nil
+local sensesSystem = nil
 
 function Start()
     SampleStart()
@@ -28,8 +30,11 @@ function Start()
     -- 创建输入管理器
     inputManager = InputManager:new()
 
-    -- 创建地面
-    Ground:new(scene_, 0, -3.0, 20.0, 1.0)
+    -- === 关卡一 ===
+    -- 主地面（100米宽）
+    Ground:new(scene_, 0, -3.0, 100.0, 1.0)
+    -- 浮空平台（y=0）
+    Ground:new(scene_, 4.0, 0.0, 5.0, 0.3)
 
     -- 创建玩家
     player = Player:new(scene_, inputManager)
@@ -37,11 +42,16 @@ function Start()
     -- 设置相机
     SetupCamera()
 
-    -- 创建5种属性敌人（分布在玩家右边，间隔1.5米）
-    local elementList = { "fire", "water", "thunder", "wind", "ice" }
-    for i, elem in ipairs(elementList) do
-        local xPos = 2.0 + (i - 1) * 1.5  -- 间隔1.5米
-        local e = Enemy:new(scene_, camera_, player, xPos, -1.9, elem)
+    -- 关卡一敌人配置
+    -- 平台范围 x=1.5~6.5，平台顶面 y=2.15
+    local levelEnemies = {
+        { x = 2.5,  y = 1.0, element = "fire" },    -- 火怪（平台上）
+        { x = 4.0,  y = 1.0, element = "water" },   -- 水怪（平台上）
+        { x = 7.0,  y = -1.9, element = "fire" },   -- 火怪（地面）
+        { x = 40.0, y = -1.9, element = "fire", boss = true },  -- boss_01（地面，右边界左10m）
+    }
+    for _, info in ipairs(levelEnemies) do
+        local e = Enemy:new(scene_, camera_, player, info.x, info.y, info.element, info.boss)
         table.insert(enemies, e)
     end
     player.enemies = enemies  -- 攻击时动态查找最近敌人
@@ -52,6 +62,11 @@ function Start()
 
     -- 创建游戏UI（含BACK按钮，默认隐藏）
     gameUI = GameUI:new(inputManager, player)
+
+    -- 创建五感剥夺系统
+    sensesSystem = SensesSystem:new(scene_, player, gameUI)
+    player.sensesSystem = sensesSystem  -- 让玩家能读取漂移值
+    gameUI.sensesSystem = sensesSystem  -- 让UI能读取倒计时异常
 
     -- 创建卡牌系统
     cardSystem = CardSystem:new()
@@ -69,16 +84,22 @@ function Start()
     cardSystem.onCardUsed = function(card)
         -- 根据卡牌类型执行效果
         if card.type == CardSystem.TYPE_ATTACK then
-            -- 攻击型：对最近敌人造成伤害（克制加倍）
+            -- 攻击型：对面朝方向最近敌人造成伤害（克制加倍）
             local myPos = player:getPosition()
             local nearestEnemy = nil
             local nearestDist = 3.0  -- 卡牌攻击范围比平A远
             for _, e in ipairs(enemies) do
                 if e:isAlive() and e.node then
-                    local dist = math.abs(myPos.x - e.node.position.x)
-                    if dist < nearestDist then
-                        nearestDist = dist
-                        nearestEnemy = e
+                    local enemyX = e.node.position.x
+                    -- 只能攻击面朝方向的敌人
+                    local inFront = (player.facingRight and enemyX > myPos.x) or
+                                    (not player.facingRight and enemyX < myPos.x)
+                    if inFront then
+                        local dist = math.abs(myPos.x - enemyX)
+                        if dist < nearestDist then
+                            nearestDist = dist
+                            nearestEnemy = e
+                        end
                     end
                 end
             end
@@ -98,6 +119,14 @@ function Start()
         elseif card.type == CardSystem.TYPE_SUPPORT then
             -- 辅助型：回复1点HP
             player:heal(1)
+        end
+    end
+
+    -- 设置玩家受伤回调：触发五感剥夺
+    player.onDamagedCallback = function()
+        local sense = sensesSystem:onPlayerDamaged()
+        if sense then
+            log:Write(LOG_INFO, "[Game] Sense deprived: " .. sense)
         end
     end
 
@@ -152,6 +181,7 @@ end
 --- 从菜单进入游戏：重置所有状态，显示游戏UI
 function EnterGame()
     player:reset()
+    sensesSystem:reset()
     for _, e in ipairs(enemies) do
         e:reset()
         e:showHpBar()
@@ -265,6 +295,9 @@ function HandleUpdate(eventType, eventData)
     -- 更新卡牌系统
     cardSystem:update(dt)
     cardUI:update(dt)
+
+    -- 更新五感剥夺系统
+    sensesSystem:update(dt)
 
     -- 更新UI（血量显示+倒计时）
     gameUI:update(dt)

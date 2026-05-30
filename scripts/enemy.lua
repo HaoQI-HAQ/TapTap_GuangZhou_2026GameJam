@@ -21,11 +21,18 @@ Enemy.ELEMENTS = {
     ice   = { name = "冰", icon = "❄️", color = Color(0.5, 0.9, 1.0, 1.0),  beats = { "wind", "thunder" }, weak = { "fire" } },
 }
 
-function Enemy:new(scene, camera, player, x, y, element)
+function Enemy:new(scene, camera, player, x, y, element, isBoss)
     ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, Enemy)
-    self.hp = ENEMY_HP
-    self.maxHp = ENEMY_HP
+    self.isBoss = isBoss or false
+    local hp = self.isBoss and ENEMY_HP * 3 or ENEMY_HP  -- Boss 3倍血量
+    self.hp = hp
+    self.maxHp = hp
+    -- Boss与小怪差异化属性
+    self.patrolSpeed = self.isBoss and 1.8 or PATROL_SPEED
+    self.chaseSpeed = self.isBoss and 1.8 or CHASE_SPEED
+    self.attackRange = self.isBoss and 2.0 or ATTACK_RANGE
+    self.patrolRange = self.isBoss and 1.0 or PATROL_RANGE
     self.alive = true
     self.scene = scene
     self.camera = camera
@@ -55,12 +62,45 @@ function Enemy:_createNode(scene, x, y)
     self.node = scene:CreateChild("Enemy_" .. self.element)
     self.node.position = Vector3(x, y, 0)
 
-    -- 可视化 - 属性颜色方块（与玩家同尺寸）
-    local sprite = self.node:CreateComponent("StaticSprite2D")
-    sprite:SetSprite(cache:GetResource("Sprite2D", "Urho2D/Box.png"))
-    sprite.color = self.elementData.color
-    sprite.drawRect = Rect(-0.4, -0.6, 0.4, 0.6)
-    self.sprite = sprite
+    -- Boss 体型：1:1 正方形，3倍大小；普通怪：0.8x1.2
+    local scale = self.isBoss and 3.0 or 1.0
+    local halfW, halfH
+    if self.isBoss then
+        halfW = 1.2  -- 1:1 正方形，边长2.4（普通怪宽0.8的3倍）
+        halfH = 1.2
+    else
+        halfW = 0.4
+        halfH = 0.6
+    end
+
+    -- 可视化
+    if self.isBoss then
+        -- Boss使用 Texture2D + Material + Plane（和Player相同方式）
+        self.spriteNode = self.node:CreateChild("BossSprite")
+        self.spriteNode.rotation = Quaternion(-90, Vector3(1, 0, 0))
+        self.spriteNode.scale = Vector3(halfW * 2, 1.0, halfH * 2)
+        local bossTexture = cache:GetResource("Texture2D", "image/Enemy/boss_01.png")
+        if bossTexture then
+            local mat = Material:new()
+            mat:SetTechnique(0, cache:GetResource("Technique", "Techniques/DiffAlpha.xml"))
+            mat:SetTexture(0, bossTexture)
+            mat:SetShaderParameter("MatDiffColor", Variant(Color(1, 1, 1, 1)))
+            mat:SetShaderParameter("UOffset", Variant(Vector4(1, 0, 0, 0)))
+            mat:SetShaderParameter("VOffset", Variant(Vector4(0, 1, 0, 0)))
+            local model = self.spriteNode:CreateComponent("StaticModel")
+            model:SetModel(cache:GetResource("Model", "Models/Plane.mdl"))
+            model:SetMaterial(mat)
+            self.bossMaterial = mat
+        else
+            log:Write(LOG_ERROR, "[Enemy] Failed to load boss texture")
+        end
+    else
+        local sprite = self.node:CreateComponent("StaticSprite2D")
+        sprite:SetSprite(cache:GetResource("Sprite2D", "Urho2D/Box.png"))
+        sprite.color = self.elementData.color
+        sprite.drawRect = Rect(-halfW, -halfH, halfW, halfH)
+        self.sprite = sprite
+    end
 
     -- 物理
     self.body = self.node:CreateComponent("RigidBody2D")
@@ -68,27 +108,69 @@ function Enemy:_createNode(scene, x, y)
     self.body.fixedRotation = true
     self.body.linearDamping = 0.5
 
-    -- 胶囊碰撞体：矩形中段 + 上下两个圆形
-    local radius = 0.4  -- 半径 = 宽度/2
-    local boxH = 1.2 - radius * 2  -- 中段矩形高度
+    if self.isBoss then
+        -- Boss：胶囊碰撞体（按boss尺寸缩放）
+        local bossRadius = halfW  -- 半径=半宽=1.2
+        local bossBoxH = halfH * 2 - bossRadius * 2  -- 中段高度
+        if bossBoxH < 0.1 then bossBoxH = 0.1 end
 
-    local boxShape = self.node:CreateComponent("CollisionBox2D")
-    boxShape.size = Vector2(0.8, boxH)
-    boxShape.center = Vector2(0, 0)
-    boxShape.density = 1.0
-    boxShape.friction = 0.0
+        -- maskBits: 排除玩家(2)，与地面(1)+敌人(4)碰撞 = 0xFFFF & ~2 = 65533
+        local MASK_NO_PLAYER = 65533
 
-    local topCircle = self.node:CreateComponent("CollisionCircle2D")
-    topCircle.radius = radius
-    topCircle.center = Vector2(0, boxH / 2)
-    topCircle.density = 1.0
-    topCircle.friction = 0.0
+        local boxShape = self.node:CreateComponent("CollisionBox2D")
+        boxShape.size = Vector2(halfW * 2, bossBoxH)
+        boxShape.center = Vector2(0, 0)
+        boxShape.density = 1.0
+        boxShape.friction = 0.0
+        boxShape.categoryBits = 4  -- CATEGORY_ENEMY
+        boxShape.maskBits = MASK_NO_PLAYER
 
-    local bottomCircle = self.node:CreateComponent("CollisionCircle2D")
-    bottomCircle.radius = radius
-    bottomCircle.center = Vector2(0, -boxH / 2)
-    bottomCircle.density = 1.0
-    bottomCircle.friction = 0.0
+        local topCircle = self.node:CreateComponent("CollisionCircle2D")
+        topCircle.radius = bossRadius
+        topCircle.center = Vector2(0, bossBoxH / 2)
+        topCircle.density = 1.0
+        topCircle.friction = 0.0
+        topCircle.categoryBits = 4  -- CATEGORY_ENEMY
+        topCircle.maskBits = MASK_NO_PLAYER
+
+        local bottomCircle = self.node:CreateComponent("CollisionCircle2D")
+        bottomCircle.radius = bossRadius
+        bottomCircle.center = Vector2(0, -bossBoxH / 2)
+        bottomCircle.density = 1.0
+        bottomCircle.friction = 0.0
+        bottomCircle.categoryBits = 4  -- CATEGORY_ENEMY
+        bottomCircle.maskBits = MASK_NO_PLAYER
+    else
+        -- 普通怪：胶囊碰撞体（矩形中段 + 上下两个圆形）
+        local radius = 0.4
+        local boxH = 1.2 - radius * 2
+        -- maskBits: 排除玩家(2)，与地面(1)+敌人(4)碰撞 = 0xFFFF & ~2 = 65533
+        local MASK_NO_PLAYER = 65533
+
+        local boxShape = self.node:CreateComponent("CollisionBox2D")
+        boxShape.size = Vector2(0.8, boxH)
+        boxShape.center = Vector2(0, 0)
+        boxShape.density = 1.0
+        boxShape.friction = 0.0
+        boxShape.categoryBits = 4  -- CATEGORY_ENEMY
+        boxShape.maskBits = MASK_NO_PLAYER
+
+        local topCircle = self.node:CreateComponent("CollisionCircle2D")
+        topCircle.radius = radius
+        topCircle.center = Vector2(0, boxH / 2)
+        topCircle.density = 1.0
+        topCircle.friction = 0.0
+        topCircle.categoryBits = 4  -- CATEGORY_ENEMY
+        topCircle.maskBits = MASK_NO_PLAYER
+
+        local bottomCircle = self.node:CreateComponent("CollisionCircle2D")
+        bottomCircle.radius = radius
+        bottomCircle.center = Vector2(0, -boxH / 2)
+        bottomCircle.density = 1.0
+        bottomCircle.friction = 0.0
+        bottomCircle.categoryBits = 4  -- CATEGORY_ENEMY
+        bottomCircle.maskBits = MASK_NO_PLAYER
+    end
 
     log:Write(LOG_INFO, "[Enemy] Created at (" .. x .. ", " .. y .. ") HP=" .. self.hp)
 end
@@ -119,13 +201,13 @@ function Enemy:_createHpBar()
     bgBar:SetPosition(0, 18)
     bgBar.color = Color(0.3, 0.3, 0.3, 0.8)
 
-    -- 血条填充（属性颜色）
+    -- 血条填充（统一红色）
     self.hpBarFill = BorderImage:new()
     self.hpBarContainer:AddChild(self.hpBarFill)
     self.hpBarFill:SetStyleAuto()
     self.hpBarFill:SetSize(60, 10)
     self.hpBarFill:SetPosition(0, 18)
-    self.hpBarFill.color = self.elementData.color
+    self.hpBarFill.color = Color(1.0, 0.1, 0.1, 1.0)
 end
 
 -- 追逐警告文本（屏幕中央偏上）
@@ -174,14 +256,18 @@ function Enemy:update(dt)
     local playerPos = self.player:getPosition()
     local distX = math.abs(playerPos.x - pos.x)
 
-    -- 一旦触发追逐，永不回到待机
-    if not self.chasing and distX <= CHASE_RANGE then
+    -- 垂直距离（用于判断是否同层）
+    local distY = math.abs(playerPos.y - pos.y)
+    local selfHeight = self.isBoss and 2.4 or 1.2  -- 敌人自身高度
+
+    -- 追逐触发：水平距离在范围内 且 玩家在同一层（垂直距离在自身高度内）
+    if not self.chasing and distX <= CHASE_RANGE and distY <= selfHeight then
         self.chasing = true
         if self.chaseWarning then self.chaseWarning.visible = true end
     end
 
     if self.chasing then
-        if distX <= ATTACK_RANGE then
+        if distX <= self.attackRange and distY <= selfHeight then
             -- 攻击状态：停下攻击并造成伤害
             self.attacking = true
             if self.attackWarning then self.attackWarning.visible = true end
@@ -217,17 +303,17 @@ function Enemy:update(dt)
                 -- 无阻挡，正常追逐
                 self.blockedByAlly = false
                 if self.chaseWarning then self.chaseWarning.visible = true end
-                self.body:SetLinearVelocity(Vector2(CHASE_SPEED * dir, velocity.y))
+                self.body:SetLinearVelocity(Vector2(self.chaseSpeed * dir, velocity.y))
             end
         end
     else
         -- 待机模式：左右徘徊
-        if pos.x > self.startX + PATROL_RANGE then
+        if pos.x > self.startX + self.patrolRange then
             self.patrolDir = -1
-        elseif pos.x < self.startX - PATROL_RANGE then
+        elseif pos.x < self.startX - self.patrolRange then
             self.patrolDir = 1
         end
-        self.body:SetLinearVelocity(Vector2(PATROL_SPEED * self.patrolDir, velocity.y))
+        self.body:SetLinearVelocity(Vector2(self.patrolSpeed * self.patrolDir, velocity.y))
     end
 
     -- 更新血条位置（跟随头顶）
@@ -309,7 +395,7 @@ function Enemy:_showDamageFloat(damage)
     floatText.text = "-" .. tostring(damage)
     floatText:SetFontSize(22)
     floatText.color = Color(1.0, 1.0, 0.0, 1.0)
-    floatText.priority = 999
+    floatText.priority = 100
 
     -- 在敌人头顶位置显示
     if self.node and self.camera then

@@ -29,6 +29,7 @@ function GameUI:_setup()
     self:_createJumpButton()
     self:_createAttackButton()
     self:_createBackButton()
+    self:_createSensesStatusUI()
 
     -- 默认隐藏（等菜单点击START后再显示）
     self:hide()
@@ -79,24 +80,50 @@ function GameUI:_createCountdownUI()
     self.countdownText.color = Color(0.1, 0.1, 0.1, 1.0)
 end
 
--- 左下角移动按钮
+-- 左下角摇杆
 function GameUI:_createMoveButtons()
     local uiRoot = ui.root
 
+    local joystickSize = 120
+    local thumbSize = 50
+    local deadZone = 10  -- 死区像素
+
+    -- 摇杆底座容器
     local container = UIElement:new()
     uiRoot:AddChild(container)
     container:SetAlignment(HA_LEFT, VA_BOTTOM)
-    container:SetSize(130, 70)
+    container:SetSize(joystickSize, joystickSize)
     container:SetPosition(20, -20)
     table.insert(self.elements, container)
 
-    self.btnLeft = self:_createButton(container, "<", 0, 10)
-    self.btnRight = self:_createButton(container, ">", 60, 10)
+    -- 底座背景（圆形外框）
+    local base = BorderImage:new()
+    container:AddChild(base)
+    base:SetStyleAuto()
+    base:SetSize(joystickSize, joystickSize)
+    base:SetPosition(0, 0)
+    base.color = Color(0.3, 0.3, 0.3, 0.4)
 
-    SubscribeToEvent(self.btnLeft, "Pressed", "HandleUILeftPressed")
-    SubscribeToEvent(self.btnLeft, "Released", "HandleUILeftReleased")
-    SubscribeToEvent(self.btnRight, "Pressed", "HandleUIRightPressed")
-    SubscribeToEvent(self.btnRight, "Released", "HandleUIRightReleased")
+    -- 摇杆拇指（可拖动）
+    local thumb = BorderImage:new()
+    container:AddChild(thumb)
+    thumb:SetStyleAuto()
+    thumb:SetSize(thumbSize, thumbSize)
+    -- 初始居中
+    local centerX = (joystickSize - thumbSize) / 2
+    local centerY = (joystickSize - thumbSize) / 2
+    thumb:SetPosition(centerX, centerY)
+    thumb.color = Color(0.8, 0.8, 0.8, 0.7)
+
+    self.joystickContainer = container
+    self.joystickThumb = thumb
+    self.joystickSize = joystickSize
+    self.joystickThumbSize = thumbSize
+    self.joystickCenterX = centerX
+    self.joystickCenterY = centerY
+    self.joystickDeadZone = deadZone
+    self.joystickActive = false
+    self.joystickMaxDist = (joystickSize - thumbSize) / 2
 end
 
 -- 右下角跳跃按钮
@@ -133,7 +160,7 @@ function GameUI:_createAttackButton()
     SubscribeToEvent(self.btnAttack, "Released", "HandleUIAttackReleased")
 end
 
--- 右上角BACK按钮
+-- 右上角BACK按钮（五感图标下方）
 function GameUI:_createBackButton()
     local uiRoot = ui.root
 
@@ -141,7 +168,7 @@ function GameUI:_createBackButton()
     uiRoot:AddChild(backContainer)
     backContainer:SetAlignment(HA_RIGHT, VA_TOP)
     backContainer:SetSize(80, 40)
-    backContainer:SetPosition(-20, 20)
+    backContainer:SetPosition(-10, 65)
     table.insert(self.elements, backContainer)
 
     local btnBack = Button:new()
@@ -161,6 +188,75 @@ function GameUI:_createBackButton()
     SubscribeToEvent(btnBack, "Released", "HandleBackToMenu")
 end
 
+-- 右上角五感状态图标（色块+文字）
+function GameUI:_createSensesStatusUI()
+    local uiRoot = ui.root
+
+    local container = UIElement:new()
+    uiRoot:AddChild(container)
+    container:SetAlignment(HA_RIGHT, VA_TOP)
+    container:SetSize(280, 50)
+    container:SetPosition(-10, 15)
+    table.insert(self.elements, container)
+
+    -- 五感定义：key, 显示名称, 代表颜色
+    local sensesDef = {
+        { key = "hearing", label = "听", color = Color(0.2, 0.6, 1.0, 1.0) },   -- 蓝色
+        { key = "touch",   label = "触", color = Color(1.0, 0.6, 0.0, 1.0) },   -- 橙色
+        { key = "taste",   label = "味", color = Color(0.9, 0.2, 0.5, 1.0) },   -- 粉红
+        { key = "smell",   label = "嗅", color = Color(0.3, 0.8, 0.3, 1.0) },   -- 绿色
+        { key = "vision",  label = "视", color = Color(0.9, 0.8, 0.1, 1.0) },   -- 黄色
+    }
+
+    self.senseIcons = {}
+    self.sensesDef = sensesDef
+
+    for i, def in ipairs(sensesDef) do
+        -- 色块背景
+        local icon = BorderImage:new()
+        container:AddChild(icon)
+        icon:SetStyleAuto()
+        icon:SetSize(44, 44)
+        icon:SetPosition((i - 1) * 52, 3)
+        icon.color = def.color
+
+        -- 文字标签
+        local label = Text:new()
+        icon:AddChild(label)
+        label:SetStyleAuto()
+        label.text = def.label
+        label:SetFontSize(20)
+        label:SetAlignment(HA_CENTER, VA_CENTER)
+        label.color = Color(1.0, 1.0, 1.0, 1.0)
+
+        self.senseIcons[i] = {
+            icon = icon,
+            label = label,
+            key = def.key,
+            activeColor = def.color,
+        }
+    end
+end
+
+-- 更新五感状态图标（失去时置灰）
+function GameUI:updateSensesIcons()
+    if not self.sensesSystem or not self.senseIcons then return end
+
+    local grayColor = Color(0.4, 0.4, 0.4, 0.5)
+    local grayText = Color(0.6, 0.6, 0.6, 0.7)
+    local whiteText = Color(1.0, 1.0, 1.0, 1.0)
+
+    for _, iconData in ipairs(self.senseIcons) do
+        if self.sensesSystem:isDeprived(iconData.key) then
+            iconData.icon.color = grayColor
+            iconData.label.color = grayText
+        else
+            iconData.icon.color = iconData.activeColor
+            iconData.label.color = whiteText
+        end
+    end
+end
+
 -- 显示游戏UI
 function GameUI:show()
     for _, elem in ipairs(self.elements) do
@@ -175,8 +271,70 @@ function GameUI:hide()
     end
 end
 
+-- 摇杆输入处理（每帧调用）
+function GameUI:_updateJoystick()
+    if not self.joystickContainer or not self.joystickContainer.visible then
+        return
+    end
+
+    local mouseDown = input:GetMouseButtonDown(MOUSEB_LEFT)
+    local mousePos = input.mousePosition
+
+    -- 获取摇杆容器的屏幕位置
+    local containerPos = self.joystickContainer.screenPosition
+    local cx = containerPos.x + self.joystickSize / 2
+    local cy = containerPos.y + self.joystickSize / 2
+
+    if mouseDown then
+        -- 检测是否在摇杆区域内（或已激活）
+        local dx = mousePos.x - cx
+        local dy = mousePos.y - cy
+        local dist = math.sqrt(dx * dx + dy * dy)
+
+        if self.joystickActive or dist <= self.joystickSize / 2 then
+            self.joystickActive = true
+
+            -- 限制拇指在圆形范围内
+            local maxDist = self.joystickMaxDist
+            if dist > maxDist then
+                dx = dx * maxDist / dist
+                dy = dy * maxDist / dist
+            end
+
+            -- 更新拇指位置
+            self.joystickThumb:SetPosition(
+                self.joystickCenterX + dx,
+                self.joystickCenterY + dy
+            )
+
+            -- 根据水平偏移设置左右输入（只关心X轴）
+            if dx < -self.joystickDeadZone then
+                self.inputManager:setTouchAction(InputManager.ACTION_LEFT, true)
+                self.inputManager:setTouchAction(InputManager.ACTION_RIGHT, false)
+            elseif dx > self.joystickDeadZone then
+                self.inputManager:setTouchAction(InputManager.ACTION_RIGHT, true)
+                self.inputManager:setTouchAction(InputManager.ACTION_LEFT, false)
+            else
+                self.inputManager:setTouchAction(InputManager.ACTION_LEFT, false)
+                self.inputManager:setTouchAction(InputManager.ACTION_RIGHT, false)
+            end
+        end
+    else
+        -- 松开：复位摇杆
+        if self.joystickActive then
+            self.joystickActive = false
+            self.joystickThumb:SetPosition(self.joystickCenterX, self.joystickCenterY)
+            self.inputManager:setTouchAction(InputManager.ACTION_LEFT, false)
+            self.inputManager:setTouchAction(InputManager.ACTION_RIGHT, false)
+        end
+    end
+end
+
 -- 每帧更新UI（血量+倒计时）
 function GameUI:update(dt)
+    -- 更新摇杆
+    self:_updateJoystick()
+
     -- 更新血量
     local currentHp = self.player:getHp()
     for i = 1, self.player:getMaxHp() do
@@ -198,7 +356,15 @@ function GameUI:update(dt)
             self.countdown = COUNTDOWN_TIME
         end
     end
-    self.countdownText.text = tostring(math.ceil(self.countdown))
+    -- 嗅觉剥夺：倒计时数字异常跳动
+    local displayVal = self.countdown
+    if self.sensesSystem then
+        displayVal = self.sensesSystem:getDisplayCountdown(self.countdown)
+    end
+    self.countdownText.text = tostring(math.ceil(displayVal))
+
+    -- 更新五感状态图标
+    self:updateSensesIcons()
 end
 
 -- 重置倒计时

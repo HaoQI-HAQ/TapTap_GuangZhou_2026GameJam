@@ -26,6 +26,7 @@ function Ground:_createNode(scene, x, y, width, height)
     local shape = self.node:CreateComponent("CollisionBox2D")
     shape.size = Vector2(width, height)
     shape.friction = 0.5
+    shape.categoryBits = 1  -- CATEGORY_GROUND
 
     log:Write(LOG_INFO, "[Ground] Created at (" .. x .. ", " .. y .. ") size: " .. width .. "x" .. height)
 end

@@ -37,7 +37,6 @@ function InputManager:new()
         [KEY_LEFT] = InputManager.ACTION_LEFT,
         [KEY_D] = InputManager.ACTION_RIGHT,
         [KEY_RIGHT] = InputManager.ACTION_RIGHT,
-        [KEY_SPACE] = InputManager.ACTION_JUMP,
         [KEY_W] = InputManager.ACTION_JUMP,
         [KEY_UP] = InputManager.ACTION_JUMP,
         [KEY_J] = InputManager.ACTION_ATTACK,
