@@ -8,7 +8,9 @@ require "scripts/enemy"
 require "scripts/menu_overlay"
 require "scripts/card_system"
 require "scripts/card_ui"
+require "scripts/card_skills"
 require "scripts/senses_system"
+require "scripts/loading_scene"
 
 local scene_ = nil
 local cameraNode = nil
@@ -21,10 +23,30 @@ local physicsWorld_ = nil
 local enemies = {}
 local cardSystem = nil
 local cardUI = nil
+local cardSkills = nil
 local sensesSystem = nil
+
+-- 加载状态
+local loadingScene = nil
+local gameReady = false
 
 function Start()
     SampleStart()
+
+    -- 先显示加载界面，预加载资源完成后再初始化游戏
+    loadingScene = LoadingScene:new(function()
+        OnLoadingComplete()
+    end)
+
+    SubscribeToEvent("Update", "HandleUpdate")
+    log:Write(LOG_INFO, "[Game] Loading started")
+end
+
+--- 预加载完成后，初始化游戏场景和所有系统
+function OnLoadingComplete()
+    loadingScene = nil
+    gameReady = true
+
     CreateScene()
 
     -- 创建输入管理器
@@ -43,12 +65,14 @@ function Start()
     SetupCamera()
 
     -- 关卡一敌人配置
-    -- 平台范围 x=1.5~6.5，平台顶面 y=2.15
     local levelEnemies = {
         { x = 2.5,  y = 1.0, element = "fire" },    -- 火怪（平台上）
-        { x = 4.0,  y = 1.0, element = "water" },   -- 水怪（平台上）
+        { x = 4.0,  y = 1.0, element = "ice" },     -- 冰怪（平台上）
         { x = 7.0,  y = -1.9, element = "fire" },   -- 火怪（地面）
-        { x = 40.0, y = -1.9, element = "fire", boss = true },  -- boss_01（地面，右边界左10m）
+        { x = 10.0, y = -1.9, element = "thunder" }, -- 雷怪（地面右侧）
+        { x = 12.0, y = -1.9, element = "grass" },  -- 草怪（地面右侧远处）
+        { x = 14.0, y = -1.9, element = "earth" },  -- 土怪（地面更右侧）
+        { x = -5.0, y = -1.9, element = "fire", boss = true },  -- boss_01（玩家出生点左5m）
     }
     for _, info in ipairs(levelEnemies) do
         local e = Enemy:new(scene_, camera_, player, info.x, info.y, info.element, info.boss)
@@ -71,7 +95,12 @@ function Start()
     -- 创建卡牌系统
     cardSystem = CardSystem:new()
     cardUI = CardUI:new(cardSystem)
+    cardSkills = CardSkills:new(scene_, player, enemies, cardSystem)
     gameUI.cardSystem = cardSystem  -- 绑定卡牌倒计时到顶部UI
+    -- 给敌人赋予卡牌系统引用（用于冻结/减速）
+    for _, e in ipairs(enemies) do
+        e.cardSystem = cardSystem
+    end
 
     -- 卡牌系统回调：施法开始/结束通知玩家
     cardSystem.onCastStart = function()
@@ -80,46 +109,9 @@ function Start()
     cardSystem.onCastEnd = function()
         player.castingCard = false
     end
-    -- 卡牌使用效果回调
+    -- 卡牌使用效果回调：执行技能
     cardSystem.onCardUsed = function(card)
-        -- 根据卡牌类型执行效果
-        if card.type == CardSystem.TYPE_ATTACK then
-            -- 攻击型：对面朝方向最近敌人造成伤害（克制加倍）
-            local myPos = player:getPosition()
-            local nearestEnemy = nil
-            local nearestDist = 3.0  -- 卡牌攻击范围比平A远
-            for _, e in ipairs(enemies) do
-                if e:isAlive() and e.node then
-                    local enemyX = e.node.position.x
-                    -- 只能攻击面朝方向的敌人
-                    local inFront = (player.facingRight and enemyX > myPos.x) or
-                                    (not player.facingRight and enemyX < myPos.x)
-                    if inFront then
-                        local dist = math.abs(myPos.x - enemyX)
-                        if dist < nearestDist then
-                            nearestDist = dist
-                            nearestEnemy = e
-                        end
-                    end
-                end
-            end
-            if nearestEnemy then
-                local dmg = 2
-                if cardSystem:isCounter(card.element, nearestEnemy.element) then
-                    dmg = 4  -- 克制加倍
-                    log:Write(LOG_INFO, "[Card] Counter! " .. card.element .. " > " .. nearestEnemy.element)
-                end
-                nearestEnemy:takeDamage(dmg, myPos.x)
-            end
-        elseif card.type == CardSystem.TYPE_DEFENSE then
-            -- 防御型：给予玩家短暂无敌
-            player.invincible = true
-            player.invincibleTimer = 2.0
-            player.blinkTimer = 0
-        elseif card.type == CardSystem.TYPE_SUPPORT then
-            -- 辅助型：回复1点HP
-            player:heal(1)
-        end
+        cardSkills:execute(card)
     end
 
     -- 设置玩家受伤回调：触发五感剥夺
@@ -145,14 +137,12 @@ function Start()
     cardUI:hide()
     physicsWorld_.enabled = false
 
-    SubscribeToEvent("Update", "HandleUpdate")
-    log:Write(LOG_INFO, "[Game] Started")
+    log:Write(LOG_INFO, "[Game] All systems initialized, ready to play")
 end
 
 function CreateScene()
     scene_ = Scene()
     scene_:CreateComponent("Octree")
-    scene_:CreateComponent("DebugRenderer")
 
     physicsWorld_ = scene_:CreateComponent("PhysicsWorld2D")
     physicsWorld_.gravity = Vector2(0, -9.81)
@@ -191,6 +181,7 @@ function EnterGame()
     gameUI:show()
     gameUI:resetCountdown()
     cardSystem:reset()
+    cardSkills:reset()
     cardUI:show()
     log:Write(LOG_INFO, "[Game] Enter game scene")
 end
@@ -221,6 +212,17 @@ end
 -- 游戏中BACK按钮回调：回到菜单
 function HandleBackToMenu(eventType, eventData)
     ReturnToMenu()
+end
+
+-- 测试按钮回调：触发Boss大招动画
+function HandleTestBossSkill(eventType, eventData)
+    for _, e in ipairs(enemies) do
+        if e.isBoss and e:isAlive() then
+            e:_startSkill()
+            log:Write(LOG_INFO, "[Game] Test: Boss skill triggered manually!")
+            break
+        end
+    end
 end
 
 -- UI按钮回调
@@ -256,25 +258,39 @@ function HandleUIAttackReleased(eventType, eventData)
     inputManager:setTouchAction(InputManager.ACTION_ATTACK, false)
 end
 
--- 卡牌按钮点击回调（5个槽位）
+-- 卡牌按钮点击回调（通过cardUI查询真实hand索引）
 function HandleCardBtn1(eventType, eventData)
-    cardSystem:useCard(1)
+    local idx = cardUI and cardUI:getHandIndex(1)
+    if idx then cardSystem:useCard(idx) end
 end
 function HandleCardBtn2(eventType, eventData)
-    cardSystem:useCard(2)
+    local idx = cardUI and cardUI:getHandIndex(2)
+    if idx then cardSystem:useCard(idx) end
 end
 function HandleCardBtn3(eventType, eventData)
-    cardSystem:useCard(3)
+    local idx = cardUI and cardUI:getHandIndex(3)
+    if idx then cardSystem:useCard(idx) end
 end
 function HandleCardBtn4(eventType, eventData)
-    cardSystem:useCard(4)
+    local idx = cardUI and cardUI:getHandIndex(4)
+    if idx then cardSystem:useCard(idx) end
 end
 function HandleCardBtn5(eventType, eventData)
-    cardSystem:useCard(5)
+    local idx = cardUI and cardUI:getHandIndex(5)
+    if idx then cardSystem:useCard(idx) end
 end
 
 function HandleUpdate(eventType, eventData)
     local dt = eventData["TimeStep"]:GetFloat()
+
+    -- 预加载阶段：只更新 Loading 界面
+    if loadingScene then
+        loadingScene:update(dt)
+        return
+    end
+
+    -- 游戏未就绪时不执行逻辑
+    if not gameReady then return end
 
     -- 菜单显示时暂停游戏逻辑
     if menuOverlay:isVisible() then
@@ -294,6 +310,7 @@ function HandleUpdate(eventType, eventData)
 
     -- 更新卡牌系统
     cardSystem:update(dt)
+    cardSkills:update(dt)
     cardUI:update(dt)
 
     -- 更新五感剥夺系统

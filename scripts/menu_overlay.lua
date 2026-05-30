@@ -23,16 +23,12 @@ function MenuOverlay:_create()
     self.panel:SetAlignment(HA_CENTER, VA_CENTER)
     self.panel:SetPriority(1000)
 
-    -- 纯白不透明背景
-    local bg = Window:new()
+    -- 纯白不透明背景（不使用 Window/SetStyleAuto，避免灰色默认皮肤）
+    local bg = BorderImage:new()
     self.panel:AddChild(bg)
-    bg:SetStyleAuto()
     bg:SetSize(graphics.width, graphics.height)
     bg:SetPosition(0, 0)
-    bg:SetColor(Color(1.0, 1.0, 1.0, 1.0))
-    bg:SetOpacity(1.0)
-    bg.movable = false
-    bg.resizable = false
+    bg.color = Color(1.0, 1.0, 1.0, 1.0)
 
     -- 游戏标题
     local title = Text:new()

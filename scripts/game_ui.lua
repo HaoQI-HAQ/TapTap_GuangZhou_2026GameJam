@@ -29,6 +29,7 @@ function GameUI:_setup()
     self:_createJumpButton()
     self:_createAttackButton()
     self:_createBackButton()
+    self:_createTestSkillButton()
     self:_createSensesStatusUI()
 
     -- 默认隐藏（等菜单点击START后再显示）
@@ -99,21 +100,19 @@ function GameUI:_createMoveButtons()
     -- 底座背景（圆形外框）
     local base = BorderImage:new()
     container:AddChild(base)
-    base:SetStyleAuto()
     base:SetSize(joystickSize, joystickSize)
     base:SetPosition(0, 0)
-    base.color = Color(0.3, 0.3, 0.3, 0.4)
+    base.color = Color(0.3, 0.3, 0.3, 0.0)
 
     -- 摇杆拇指（可拖动）
     local thumb = BorderImage:new()
     container:AddChild(thumb)
-    thumb:SetStyleAuto()
     thumb:SetSize(thumbSize, thumbSize)
     -- 初始居中
     local centerX = (joystickSize - thumbSize) / 2
     local centerY = (joystickSize - thumbSize) / 2
     thumb:SetPosition(centerX, centerY)
-    thumb.color = Color(0.8, 0.8, 0.8, 0.7)
+    thumb.color = Color(0.8, 0.8, 0.8, 0.4)
 
     self.joystickContainer = container
     self.joystickThumb = thumb
@@ -173,7 +172,6 @@ function GameUI:_createBackButton()
 
     local btnBack = Button:new()
     backContainer:AddChild(btnBack)
-    btnBack:SetStyleAuto()
     btnBack:SetSize(80, 40)
     btnBack:SetPosition(0, 0)
     btnBack:SetOpacity(0.8)
@@ -186,6 +184,33 @@ function GameUI:_createBackButton()
     backText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnBack, "Released", "HandleBackToMenu")
+end
+
+-- BACK按钮下方：Boss大招测试按钮
+function GameUI:_createTestSkillButton()
+    local uiRoot = ui.root
+
+    local testContainer = UIElement:new()
+    uiRoot:AddChild(testContainer)
+    testContainer:SetAlignment(HA_RIGHT, VA_TOP)
+    testContainer:SetSize(80, 40)
+    testContainer:SetPosition(-10, 110)
+    table.insert(self.elements, testContainer)
+
+    local btnTest = Button:new()
+    testContainer:AddChild(btnTest)
+    btnTest:SetSize(80, 40)
+    btnTest:SetPosition(0, 0)
+    btnTest:SetOpacity(0.8)
+
+    local testText = Text:new()
+    btnTest:AddChild(testText)
+    testText:SetStyleAuto()
+    testText.text = "SKILL"
+    testText:SetFontSize(16)
+    testText:SetAlignment(HA_CENTER, VA_CENTER)
+
+    SubscribeToEvent(btnTest, "Released", "HandleTestBossSkill")
 end
 
 -- 右上角五感状态图标（色块+文字）
@@ -215,7 +240,6 @@ function GameUI:_createSensesStatusUI()
         -- 色块背景
         local icon = BorderImage:new()
         container:AddChild(icon)
-        icon:SetStyleAuto()
         icon:SetSize(44, 44)
         icon:SetPosition((i - 1) * 52, 3)
         icon.color = def.color
@@ -376,10 +400,9 @@ end
 function GameUI:_createButton(parent, label, x, y)
     local btn = Button:new()
     parent:AddChild(btn)
-    btn:SetStyleAuto()
     btn:SetSize(50, 50)
     btn:SetPosition(x, y)
-    btn:SetOpacity(0.7)
+    btn:SetOpacity(0.5)
 
     local text = Text:new()
     btn:AddChild(text)
