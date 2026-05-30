@@ -159,6 +159,24 @@ function Player:_createNode(scene)
     -- 保存碰撞体引用（无敌帧时修改maskBits）
     self.collisionShapes = { boxShape, topCircle, bottomCircle }
 
+    -- 音效
+    self.sfxSource = self.node:CreateComponent("SoundSource")
+    self.sfxSource:SetSoundType(SOUND_EFFECT)
+    self.sfxSource.gain = 1.0
+    self.sfxWalkSource = self.node:CreateComponent("SoundSource")
+    self.sfxWalkSource:SetSoundType(SOUND_EFFECT)
+    self.sfxWalkSource.gain = 0.6
+
+    self.sndAttack = cache:GetResource("Sound", "audio/sfx/player_attack.ogg")
+    self.sndDropAttack = cache:GetResource("Sound", "audio/sfx/player_drop_attack.ogg")
+    self.sndWalk = cache:GetResource("Sound", "audio/sfx/player_walk.ogg")
+    self.sndHurt = cache:GetResource("Sound", "audio/sfx/player_hurt.ogg")
+    if self.sndWalk then self.sndWalk.looped = true end
+
+    log:Write(LOG_INFO, "[Player] SFX loaded: attack=" .. tostring(self.sndAttack ~= nil)
+        .. " drop=" .. tostring(self.sndDropAttack ~= nil)
+        .. " walk=" .. tostring(self.sndWalk ~= nil)
+        .. " hurt=" .. tostring(self.sndHurt ~= nil))
     log:Write(LOG_INFO, "[Player] Created with HP=" .. self.hp)
 end
 
@@ -324,6 +342,19 @@ function Player:_updateAnimation(dt)
         end
     end
 
+    -- 走路音效控制（每帧检查）
+    if self.sfxWalkSource and self.sndWalk then
+        if targetAnim == "walk" then
+            if not self.sfxWalkSource:IsPlaying() then
+                self.sfxWalkSource:Play(self.sndWalk)
+            end
+        else
+            if self.sfxWalkSource:IsPlaying() then
+                self.sfxWalkSource:Stop()
+            end
+        end
+    end
+
     -- 播放动画帧（不同状态不同逻辑）
     if targetAnim == "jump" then
         -- 跳跃：根据滞空时间均匀分配帧，落地时刚好播完
@@ -365,6 +396,7 @@ end
 -- 执行平A攻击（查找范围内最近的存活敌人）
 function Player:_doAttack()
     self.attackCooldown = ATTACK_COOLDOWN
+    if self.sfxSource and self.sndAttack then self.sfxSource:Play(self.sndAttack) end
     if not self.enemies then return end
 
     local myPos = self.node.position
@@ -398,6 +430,7 @@ function Player:_enterSlam()
     self.slamming = true
     self.attackCooldown = ATTACK_COOLDOWN
     self.body:SetLinearVelocity(Vector2(0, -SLAM_SPEED))
+    if self.sfxSource and self.sndDropAttack then self.sfxSource:Play(self.sndDropAttack) end
     log:Write(LOG_INFO, "[Player] Slam attack started!")
 end
 
@@ -556,6 +589,7 @@ function Player:takeDamage(amount, sourceX)
     if self.dead then return false end
 
     self.hp = math.max(0, self.hp - (amount or 1))
+    if self.sfxSource and self.sndHurt then self.sfxSource:Play(self.sndHurt) end
     log:Write(LOG_INFO, "[Player] Took damage, HP=" .. self.hp)
 
     -- 小击退：远离攻击来源方向
