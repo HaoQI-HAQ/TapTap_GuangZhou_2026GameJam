@@ -336,27 +336,29 @@ function _createGameOverUI()
 
     gameOverContainer = UIElement:new()
     uiRoot:AddChild(gameOverContainer)
-    gameOverContainer:SetSize(graphics.width, graphics.height)
     gameOverContainer:SetAlignment(HA_LEFT, VA_TOP)
+    gameOverContainer:SetPosition(0, 0)
     gameOverContainer.priority = 900
 
-    -- 半透明黑色遮罩
+    -- 黑色遮罩铺满
     local bg = BorderImage:new()
     gameOverContainer:AddChild(bg)
-    bg:SetSize(graphics.width, graphics.height)
-    bg.color = Color(0, 0, 0, 0.8)
+    bg:SetAlignment(HA_LEFT, VA_TOP)
+    bg:SetPosition(0, 0)
+    bg.color = Color(0, 0, 0, 0.85)
+    self_gameOverBg = bg
 
-    -- Game Over 文字
+    -- Game Over 文字（居中）
     local title = Text:new()
     gameOverContainer:AddChild(title)
     title:SetStyleAuto()
     title.text = "GAME OVER"
     title:SetFontSize(48)
     title:SetAlignment(HA_CENTER, VA_CENTER)
-    title:SetPosition(0, -30)
+    title:SetPosition(0, -40)
     title.color = Color(1.0, 0.2, 0.2, 1.0)
 
-    -- 重新开始按钮
+    -- 重新开始按钮（居中，文字下方）
     local restartBtn = Button:new()
     gameOverContainer:AddChild(restartBtn)
     restartBtn:SetStyleAuto()
@@ -378,6 +380,13 @@ end
 
 function ShowGameOver()
     if gameOverContainer then
+        -- 动态获取当前屏幕尺寸，确保全屏覆盖
+        local w = ui.root.width
+        local h = ui.root.height
+        gameOverContainer:SetSize(w, h)
+        if self_gameOverBg then
+            self_gameOverBg:SetSize(w, h)
+        end
         gameOverContainer.visible = true
     end
     physicsWorld_.enabled = false
