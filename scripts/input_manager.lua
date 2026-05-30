@@ -13,7 +13,7 @@ InputManager.ACTION_JUMP   = "jump"
 InputManager.ACTION_ATTACK = "attack"
 InputManager.ACTION_SLAM   = "slam"    -- 下砸(下+攻击)
 
-function InputManager:new()
+function InputManager.new(_)
     local self = setmetatable({}, InputManager)
 
     -- 动作状态(持续按住)

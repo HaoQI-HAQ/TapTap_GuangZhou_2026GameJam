@@ -17,7 +17,7 @@ Player.STATE_ATTACK  = "attack"
 Player.STATE_SLAM    = "slam"
 Player.STATE_CAST    = "cast"
 
-function Player:new(scene, inputMgr)
+function Player.new(_, scene, inputMgr)
     local self = setmetatable({}, Player)
 
     self.inputMgr = inputMgr

@@ -12,7 +12,7 @@ CardSystem.TYPE_ATTACK  = "attack"   -- 属性攻击卡
 CardSystem.TYPE_NONE_ATK = "none_atk" -- 无属性攻击(固定2点)
 CardSystem.TYPE_MATTER  = "matter"   -- 物质(固定3点穿透)
 
-function CardSystem:new()
+function CardSystem.new(_)
     local self = setmetatable({}, CardSystem)
 
     self.hand = {}              -- 当前手牌 [{element, type, baseDamage}]

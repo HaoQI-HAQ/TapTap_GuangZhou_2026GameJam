@@ -12,7 +12,7 @@ Enemy.STATE_PATROL  = "patrol"
 Enemy.STATE_CHASE   = "chase"
 Enemy.STATE_ATTACK  = "attack"
 
-function Enemy:new(scene, x, y, element)
+function Enemy.new(_, scene, x, y, element)
     local self = setmetatable({}, Enemy)
 
     self.hp = CONFIG.EnemyHP
