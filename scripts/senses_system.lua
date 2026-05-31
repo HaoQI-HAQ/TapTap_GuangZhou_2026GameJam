@@ -273,4 +273,13 @@ function SensesSystem:reset()
     log:Write(LOG_INFO, "[SensesSystem] Reset all senses")
 end
 
+--- 销毁UI元素（重新开始前调用）
+function SensesSystem:destroy()
+    if self.fadeOverlay then
+        self.fadeOverlay:Remove()
+        self.fadeOverlay = nil
+    end
+    log:Write(LOG_INFO, "[SensesSystem] Destroyed")
+end
+
 return SensesSystem

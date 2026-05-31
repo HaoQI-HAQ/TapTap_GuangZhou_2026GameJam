@@ -213,7 +213,7 @@ function GameUI:_createTestSkillButton()
     SubscribeToEvent(btnTest, "Released", "HandleTestBossSkill")
 end
 
--- 右上角五感状态图标（色块+文字）
+-- 右上角五感状态图标（使用图片素材）
 function GameUI:_createSensesStatusUI()
     local uiRoot = ui.root
 
@@ -224,61 +224,71 @@ function GameUI:_createSensesStatusUI()
     container:SetPosition(-10, 15)
     table.insert(self.elements, container)
 
-    -- 五感定义：key, 显示名称, 代表颜色
+    -- 五感定义：key, 正常图片路径, 异常图片路径
     local sensesDef = {
-        { key = "hearing", label = "听", color = Color(0.2, 0.6, 1.0, 1.0) },   -- 蓝色
-        { key = "touch",   label = "触", color = Color(1.0, 0.6, 0.0, 1.0) },   -- 橙色
-        { key = "taste",   label = "味", color = Color(0.9, 0.2, 0.5, 1.0) },   -- 粉红
-        { key = "smell",   label = "嗅", color = Color(0.3, 0.8, 0.3, 1.0) },   -- 绿色
-        { key = "vision",  label = "视", color = Color(0.9, 0.8, 0.1, 1.0) },   -- 黄色
+        { key = "hearing", normalTex = "image/TheFiveSenses/normal/听觉_正常.png", abnormalTex = "image/TheFiveSenses/abnormal/听觉_异常.png" },
+        { key = "touch",   normalTex = "image/TheFiveSenses/normal/触觉_正常.png", abnormalTex = "image/TheFiveSenses/abnormal/触觉_异常.png" },
+        { key = "taste",   normalTex = "image/TheFiveSenses/normal/味觉_正常.png", abnormalTex = "image/TheFiveSenses/abnormal/味觉_异常.png" },
+        { key = "smell",   normalTex = "image/TheFiveSenses/normal/嗅觉_正常.png", abnormalTex = "image/TheFiveSenses/abnormal/嗅觉_异常.png" },
+        { key = "vision",  normalTex = "image/TheFiveSenses/normal/视觉_正常.png", abnormalTex = "image/TheFiveSenses/abnormal/视觉_异常.png" },
     }
 
     self.senseIcons = {}
     self.sensesDef = sensesDef
 
     for i, def in ipairs(sensesDef) do
-        -- 色块背景
         local icon = BorderImage:new()
         container:AddChild(icon)
         icon:SetSize(44, 44)
         icon:SetPosition((i - 1) * 52, 3)
-        icon.color = def.color
-
-        -- 文字标签
-        local label = Text:new()
-        icon:AddChild(label)
-        label:SetStyleAuto()
-        label.text = def.label
-        label:SetFontSize(20)
-        label:SetAlignment(HA_CENTER, VA_CENTER)
-        label.color = Color(1.0, 1.0, 1.0, 1.0)
+        -- 设置正常状态图片
+        local normalTexture = cache:GetResource("Texture2D", def.normalTex)
+        if normalTexture then
+            icon:SetTexture(normalTexture)
+            icon:SetImageRect(IntRect(0, 0, normalTexture:GetWidth(), normalTexture:GetHeight()))
+        end
+        icon.color = Color(1.0, 1.0, 1.0, 1.0)
 
         self.senseIcons[i] = {
             icon = icon,
-            label = label,
             key = def.key,
-            activeColor = def.color,
+            normalTex = def.normalTex,
+            abnormalTex = def.abnormalTex,
         }
     end
 end
 
--- 更新五感状态图标（失去时置灰）
+-- 更新五感状态图标（正常/异常切换图片）
 function GameUI:updateSensesIcons()
     if not self.sensesSystem or not self.senseIcons then return end
 
-    local grayColor = Color(0.4, 0.4, 0.4, 0.5)
-    local grayText = Color(0.6, 0.6, 0.6, 0.7)
-    local whiteText = Color(1.0, 1.0, 1.0, 1.0)
-
     for _, iconData in ipairs(self.senseIcons) do
+        local texPath
         if self.sensesSystem:isDeprived(iconData.key) then
-            iconData.icon.color = grayColor
-            iconData.label.color = grayText
+            texPath = iconData.abnormalTex
         else
-            iconData.icon.color = iconData.activeColor
-            iconData.label.color = whiteText
+            texPath = iconData.normalTex
         end
+        local tex = cache:GetResource("Texture2D", texPath)
+        if tex then
+            iconData.icon:SetTexture(tex)
+            iconData.icon:SetImageRect(IntRect(0, 0, tex:GetWidth(), tex:GetHeight()))
+        end
+        iconData.icon.color = Color(1.0, 1.0, 1.0, 1.0)
     end
+end
+
+--- 销毁所有UI元素（从 ui.root 移除），重新开始前调用
+function GameUI:destroy()
+    for _, elem in ipairs(self.elements) do
+        elem:Remove()
+    end
+    self.elements = {}
+    self.hpIcons = {}
+    self.countdownText = nil
+    self.joystickContainer = nil
+    self.joystickThumb = nil
+    log:Write(LOG_INFO, "[GameUI] Destroyed")
 end
 
 -- 显示游戏UI

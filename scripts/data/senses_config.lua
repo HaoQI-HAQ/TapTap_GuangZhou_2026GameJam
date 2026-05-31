@@ -9,11 +9,11 @@
 local config = {
     {
         sense = "hearing",
-        order = "random",
+        order = "fixed_second_last",
         effectType = "audio_mute",
         param1 = "sfx",
         param2 = "bgm",
-        description = "攻击预警音消失+BGM消失",
+        description = "攻击预警音消失+BGM消失（倒数第二个消失）",
     },
     {
         sense = "touch",

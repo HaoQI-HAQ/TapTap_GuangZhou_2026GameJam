@@ -31,6 +31,7 @@ function GameUI:_setup()
     self:_createBackButton()
     self:_createTestSkillButton()
     self:_createSensesStatusUI()
+    self:_createLevelIndicator()
 
     -- 默认隐藏（等菜单点击START后再显示）
     self:hide()
@@ -61,27 +62,43 @@ function GameUI:_createHpUI()
     end
 end
 
--- 中上位置倒计时UI
+-- 中上位置倒计时UI（使用齿轮图片）
 function GameUI:_createCountdownUI()
     local uiRoot = ui.root
 
+    local imgSize = 64
     local container = UIElement:new()
     uiRoot:AddChild(container)
     container:SetAlignment(HA_CENTER, VA_TOP)
-    container:SetSize(100, 50)
-    container:SetPosition(0, 20)
+    container:SetSize(imgSize, imgSize)
+    container:SetPosition(0, 10)
     table.insert(self.elements, container)
 
+    -- 预加载5张倒计时图片
+    self.countdownImages = {}
+    for i = 1, 5 do
+        self.countdownImages[i] = cache:GetResource("Texture2D", "image/UI/time_0" .. i .. ".png")
+    end
+
+    -- 用 BorderImage 显示当前倒计时图片
+    self.countdownIcon = BorderImage:new()
+    container:AddChild(self.countdownIcon)
+    self.countdownIcon:SetSize(imgSize, imgSize)
+    self.countdownIcon:SetAlignment(HA_CENTER, VA_CENTER)
+    self.countdownIcon.blendMode = BLEND_ALPHA
+    if self.countdownImages[5] then
+        self.countdownIcon:SetTexture(self.countdownImages[5])
+        self.countdownIcon:SetFullImageRect()
+    end
+
+    -- 保留 countdownText 兼容性（隐藏的文本，仅用于逻辑）
     self.countdownText = Text:new()
     container:AddChild(self.countdownText)
-    self.countdownText:SetStyleAuto()
+    self.countdownText.visible = false
     self.countdownText.text = "5"
-    self.countdownText:SetFontSize(32)
-    self.countdownText:SetAlignment(HA_CENTER, VA_TOP)
-    self.countdownText.color = Color(0.1, 0.1, 0.1, 1.0)
 end
 
--- 左下角摇杆
+-- 左下角摇杆（使用图片素材）
 function GameUI:_createMoveButtons()
     local uiRoot = ui.root
 
@@ -97,14 +114,19 @@ function GameUI:_createMoveButtons()
     container:SetPosition(20, -20)
     table.insert(self.elements, container)
 
-    -- 底座背景（圆形外框）
+    -- 底座背景（使用摇杆图片）
     local base = BorderImage:new()
     container:AddChild(base)
     base:SetSize(joystickSize, joystickSize)
     base:SetPosition(0, 0)
-    base.color = Color(0.3, 0.3, 0.3, 0.0)
+    base.blendMode = BLEND_ALPHA
+    local baseTex = cache:GetResource("Texture2D", "image/UI/摇杆.png")
+    if baseTex then
+        base:SetTexture(baseTex)
+        base:SetFullImageRect()
+    end
 
-    -- 摇杆拇指（可拖动）
+    -- 摇杆拇指（可拖动，半透明圆点）
     local thumb = BorderImage:new()
     container:AddChild(thumb)
     thumb:SetSize(thumbSize, thumbSize)
@@ -112,7 +134,7 @@ function GameUI:_createMoveButtons()
     local centerX = (joystickSize - thumbSize) / 2
     local centerY = (joystickSize - thumbSize) / 2
     thumb:SetPosition(centerX, centerY)
-    thumb.color = Color(0.8, 0.8, 0.8, 0.4)
+    thumb.color = Color(1.0, 1.0, 1.0, 0.5)
 
     self.joystickContainer = container
     self.joystickThumb = thumb
@@ -125,35 +147,73 @@ function GameUI:_createMoveButtons()
     self.joystickMaxDist = (joystickSize - thumbSize) / 2
 end
 
--- 右下角跳跃按钮
+-- 右下角跳跃按钮（使用图片素材）
 function GameUI:_createJumpButton()
     local uiRoot = ui.root
+
+    local btnSize = 70
 
     local jumpContainer = UIElement:new()
     uiRoot:AddChild(jumpContainer)
     jumpContainer:SetAlignment(HA_RIGHT, VA_BOTTOM)
-    jumpContainer:SetSize(70, 70)
+    jumpContainer:SetSize(btnSize, btnSize)
     jumpContainer:SetPosition(-20, -20)
     table.insert(self.elements, jumpContainer)
 
-    self.btnJump = self:_createButton(jumpContainer, "^", 10, 10)
+    -- 跳跃图标背景
+    local jumpIcon = BorderImage:new()
+    jumpContainer:AddChild(jumpIcon)
+    jumpIcon:SetSize(btnSize, btnSize)
+    jumpIcon:SetPosition(0, 0)
+    jumpIcon.blendMode = BLEND_ALPHA
+    local jumpTex = cache:GetResource("Texture2D", "image/UI/跳跃.png")
+    if jumpTex then
+        jumpIcon:SetTexture(jumpTex)
+        jumpIcon:SetFullImageRect()
+    end
+
+    -- 透明按钮覆盖在图标上接收点击
+    self.btnJump = Button:new()
+    jumpContainer:AddChild(self.btnJump)
+    self.btnJump:SetSize(btnSize, btnSize)
+    self.btnJump:SetPosition(0, 0)
+    self.btnJump:SetOpacity(0.0)
 
     SubscribeToEvent(self.btnJump, "Pressed", "HandleUIJumpPressed")
     SubscribeToEvent(self.btnJump, "Released", "HandleUIJumpReleased")
 end
 
--- 右下角攻击按钮（跳跃按钮上方）
+-- 右下角攻击按钮（跳跃按钮上方，使用图片素材）
 function GameUI:_createAttackButton()
     local uiRoot = ui.root
+
+    local btnSize = 70
 
     local attackContainer = UIElement:new()
     uiRoot:AddChild(attackContainer)
     attackContainer:SetAlignment(HA_RIGHT, VA_BOTTOM)
-    attackContainer:SetSize(70, 70)
-    attackContainer:SetPosition(-20, -80)
+    attackContainer:SetSize(btnSize, btnSize)
+    attackContainer:SetPosition(-20, -100)
     table.insert(self.elements, attackContainer)
 
-    self.btnAttack = self:_createButton(attackContainer, "A", 10, 10)
+    -- 攻击图标背景
+    local attackIcon = BorderImage:new()
+    attackContainer:AddChild(attackIcon)
+    attackIcon:SetSize(btnSize, btnSize)
+    attackIcon:SetPosition(0, 0)
+    attackIcon.blendMode = BLEND_ALPHA
+    local attackTex = cache:GetResource("Texture2D", "image/UI/攻击.png")
+    if attackTex then
+        attackIcon:SetTexture(attackTex)
+        attackIcon:SetFullImageRect()
+    end
+
+    -- 透明按钮覆盖在图标上接收点击
+    self.btnAttack = Button:new()
+    attackContainer:AddChild(self.btnAttack)
+    self.btnAttack:SetSize(btnSize, btnSize)
+    self.btnAttack:SetPosition(0, 0)
+    self.btnAttack:SetOpacity(0.0)
 
     SubscribeToEvent(self.btnAttack, "Pressed", "HandleUIAttackPressed")
     SubscribeToEvent(self.btnAttack, "Released", "HandleUIAttackReleased")
@@ -213,7 +273,7 @@ function GameUI:_createTestSkillButton()
     SubscribeToEvent(btnTest, "Released", "HandleTestBossSkill")
 end
 
--- 右上角五感状态图标（色块+文字）
+-- 右上角五感状态图标（使用图片素材）
 function GameUI:_createSensesStatusUI()
     local uiRoot = ui.root
 
@@ -224,61 +284,98 @@ function GameUI:_createSensesStatusUI()
     container:SetPosition(-10, 15)
     table.insert(self.elements, container)
 
-    -- 五感定义：key, 显示名称, 代表颜色
+    -- 五感定义：key, 正常图片路径, 异常图片路径
     local sensesDef = {
-        { key = "hearing", label = "听", color = Color(0.2, 0.6, 1.0, 1.0) },   -- 蓝色
-        { key = "touch",   label = "触", color = Color(1.0, 0.6, 0.0, 1.0) },   -- 橙色
-        { key = "taste",   label = "味", color = Color(0.9, 0.2, 0.5, 1.0) },   -- 粉红
-        { key = "smell",   label = "嗅", color = Color(0.3, 0.8, 0.3, 1.0) },   -- 绿色
-        { key = "vision",  label = "视", color = Color(0.9, 0.8, 0.1, 1.0) },   -- 黄色
+        { key = "hearing", normalTex = "image/TheFiveSenses/normal/听觉_正常.png", abnormalTex = "image/TheFiveSenses/abnormal/听觉_异常.png" },
+        { key = "touch",   normalTex = "image/TheFiveSenses/normal/触觉_正常.png", abnormalTex = "image/TheFiveSenses/abnormal/触觉_异常.png" },
+        { key = "taste",   normalTex = "image/TheFiveSenses/normal/味觉_正常.png", abnormalTex = "image/TheFiveSenses/abnormal/味觉_异常.png" },
+        { key = "smell",   normalTex = "image/TheFiveSenses/normal/嗅觉_正常.png", abnormalTex = "image/TheFiveSenses/abnormal/嗅觉_异常.png" },
+        { key = "vision",  normalTex = "image/TheFiveSenses/normal/视觉_正常.png", abnormalTex = "image/TheFiveSenses/abnormal/视觉_异常.png" },
     }
 
     self.senseIcons = {}
     self.sensesDef = sensesDef
 
     for i, def in ipairs(sensesDef) do
-        -- 色块背景
         local icon = BorderImage:new()
         container:AddChild(icon)
         icon:SetSize(44, 44)
         icon:SetPosition((i - 1) * 52, 3)
-        icon.color = def.color
-
-        -- 文字标签
-        local label = Text:new()
-        icon:AddChild(label)
-        label:SetStyleAuto()
-        label.text = def.label
-        label:SetFontSize(20)
-        label:SetAlignment(HA_CENTER, VA_CENTER)
-        label.color = Color(1.0, 1.0, 1.0, 1.0)
+        -- 设置正常状态图片
+        local normalTexture = cache:GetResource("Texture2D", def.normalTex)
+        if normalTexture then
+            icon:SetTexture(normalTexture)
+            icon:SetImageRect(IntRect(0, 0, normalTexture:GetWidth(), normalTexture:GetHeight()))
+        end
+        icon.color = Color(1.0, 1.0, 1.0, 1.0)
 
         self.senseIcons[i] = {
             icon = icon,
-            label = label,
             key = def.key,
-            activeColor = def.color,
+            normalTex = def.normalTex,
+            abnormalTex = def.abnormalTex,
         }
     end
 end
 
--- 更新五感状态图标（失去时置灰）
+-- 底部中间关卡指示器
+function GameUI:_createLevelIndicator()
+    local uiRoot = ui.root
+
+    local container = UIElement:new()
+    uiRoot:AddChild(container)
+    container:SetAlignment(HA_CENTER, VA_BOTTOM)
+    container:SetSize(120, 30)
+    container:SetPosition(0, -20)
+    table.insert(self.elements, container)
+
+    self.levelText = Text:new()
+    container:AddChild(self.levelText)
+    self.levelText:SetStyleAuto()
+    self.levelText.text = ""
+    self.levelText:SetFontSize(16)
+    self.levelText:SetAlignment(HA_CENTER, VA_CENTER)
+    self.levelText.color = Color(1.0, 1.0, 1.0, 0.9)
+end
+
+-- 设置当前关卡显示
+function GameUI:setLevel(level, maxLevel)
+    if self.levelText then
+        self.levelText.text = "第 " .. level .. " / " .. maxLevel .. " 关"
+    end
+end
+
+-- 更新五感状态图标（正常/异常切换图片）
 function GameUI:updateSensesIcons()
     if not self.sensesSystem or not self.senseIcons then return end
 
-    local grayColor = Color(0.4, 0.4, 0.4, 0.5)
-    local grayText = Color(0.6, 0.6, 0.6, 0.7)
-    local whiteText = Color(1.0, 1.0, 1.0, 1.0)
-
     for _, iconData in ipairs(self.senseIcons) do
+        local texPath
         if self.sensesSystem:isDeprived(iconData.key) then
-            iconData.icon.color = grayColor
-            iconData.label.color = grayText
+            texPath = iconData.abnormalTex
         else
-            iconData.icon.color = iconData.activeColor
-            iconData.label.color = whiteText
+            texPath = iconData.normalTex
         end
+        local tex = cache:GetResource("Texture2D", texPath)
+        if tex then
+            iconData.icon:SetTexture(tex)
+            iconData.icon:SetImageRect(IntRect(0, 0, tex:GetWidth(), tex:GetHeight()))
+        end
+        iconData.icon.color = Color(1.0, 1.0, 1.0, 1.0)
     end
+end
+
+--- 销毁所有UI元素（从 ui.root 移除），重新开始前调用
+function GameUI:destroy()
+    for _, elem in ipairs(self.elements) do
+        elem:Remove()
+    end
+    self.elements = {}
+    self.hpIcons = {}
+    self.countdownText = nil
+    self.joystickContainer = nil
+    self.joystickThumb = nil
+    log:Write(LOG_INFO, "[GameUI] Destroyed")
 end
 
 -- 显示游戏UI
@@ -385,7 +482,14 @@ function GameUI:update(dt)
     if self.sensesSystem then
         displayVal = self.sensesSystem:getDisplayCountdown(self.countdown)
     end
-    self.countdownText.text = tostring(math.ceil(displayVal))
+    local displayNum = math.ceil(displayVal)
+    displayNum = math.max(1, math.min(5, displayNum))
+    self.countdownText.text = tostring(displayNum)
+    -- 更新倒计时图片
+    if self.countdownIcon and self.countdownImages[displayNum] then
+        self.countdownIcon:SetTexture(self.countdownImages[displayNum])
+        self.countdownIcon:SetFullImageRect()
+    end
 
     -- 更新五感状态图标
     self:updateSensesIcons()

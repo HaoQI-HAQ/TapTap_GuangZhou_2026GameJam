@@ -2,18 +2,21 @@
 Enemy = {}
 Enemy.__index = Enemy
 
-local ENEMY_HP = 10
-local PATROL_SPEED = 1.5
-local PATROL_RANGE = 0.5
-local CHASE_RANGE = 1.0
-local CHASE_SPEED = 2.5
-local ATTACK_RANGE = 1.0
-local ATTACK_DAMAGE = 1
-local ATTACK_COOLDOWN = 1.0  -- 每秒攻击一次
-local FRONT_CHECK_DIST = 1.0  -- 前方友军检测距离
-local BOSS_SKILL_CD = 4.0        -- Boss大招冷却时间（秒）
-local BOSS_SKILL_RANGE = 3.0     -- Boss大招伤害范围（嘴前方3米）
-local BOSS_SKILL_DAMAGE = 1      -- Boss大招伤害
+local ConfigLoader = require("config_loader")
+local _enemyCfg = ConfigLoader.loadEnemyConfig()
+
+local ENEMY_HP = _enemyCfg.ENEMY_HP or 10
+local PATROL_SPEED = _enemyCfg.PATROL_SPEED or 1.5
+local PATROL_RANGE = _enemyCfg.PATROL_RANGE or 0.5
+local CHASE_RANGE = _enemyCfg.CHASE_RANGE or 1.0
+local CHASE_SPEED = _enemyCfg.CHASE_SPEED or 2.5
+local ATTACK_RANGE = _enemyCfg.ATTACK_RANGE or 1.0
+local ATTACK_DAMAGE = _enemyCfg.ATTACK_DAMAGE or 1
+local ATTACK_COOLDOWN = _enemyCfg.ATTACK_COOLDOWN or 1.0
+local FRONT_CHECK_DIST = _enemyCfg.FRONT_CHECK_DIST or 1.0
+local BOSS_SKILL_CD = _enemyCfg.BOSS_SKILL_CD or 4.0
+local BOSS_SKILL_RANGE = _enemyCfg.BOSS_SKILL_RANGE or 3.0
+local BOSS_SKILL_DAMAGE = _enemyCfg.BOSS_SKILL_DAMAGE or 1
 local BOSS_SKILL_FRAMES = 3      -- Boss大招动画帧数（身体）
 local BOSS_SKILL_FRAME_DUR = 0.267 -- 每帧持续时间（秒）0.8s/3帧
 local BOSS_SKILL_FRAME_PX = 682  -- 每帧像素宽度
@@ -38,32 +41,25 @@ local ENEMY_WALK_TEXTURES = {
 local ENEMY_ATK_TEXTURES = {
     ice = { path = "image/Enemy/ice/enemy_ice_atk.png", framePx = 200, texW = 800, texH = 339, frames = 4, facesLeft = false },
     grass = { path = "image/Enemy/grass/enemy_grass_atk.png", framePx = 200, texW = 800, texH = 200, frames = 4, facesLeft = true },
+    earth = { path = "image/Enemy/earth/enemy_earth_atk.png", framePx = 380, texW = 1520, texH = 380, frames = 4, facesLeft = false },
 }
 local ENEMY_ATK_FPS = 8  -- 攻击动画帧率
 
--- 属性定义：颜色 + 克制关系
-Enemy.ELEMENTS = {
-    fire  = { name = "火", icon = "🔥", color = Color(1.0, 0.3, 0.1, 1.0),  beats = { "wind", "ice" }, weak = { "water" } },
-    water = { name = "水", icon = "💧", color = Color(0.1, 0.5, 1.0, 1.0),  beats = { "fire" },        weak = { "thunder" } },
-    thunder = { name = "雷", icon = "⚡", color = Color(0.9, 0.8, 0.1, 1.0), beats = { "water" },       weak = { "wind" } },
-    wind  = { name = "风", icon = "🌪️", color = Color(0.2, 0.9, 0.4, 1.0),  beats = { "thunder" },     weak = { "fire" } },
-    ice   = { name = "冰", icon = "❄️", color = Color(0.5, 0.9, 1.0, 1.0),  beats = { "wind", "thunder" }, weak = { "fire" } },
-    grass = { name = "草", icon = "🌿", color = Color(0.2, 0.8, 0.3, 1.0),  beats = { "water" },       weak = { "fire" } },
-    earth = { name = "土", icon = "🪨", color = Color(0.55, 0.27, 0.07, 1.0), beats = { "thunder" },  weak = { "ice" } },
-}
+-- 属性定义：从 CSV 配置表加载（颜色 + 克制关系）
+Enemy.ELEMENTS = ConfigLoader.loadEnemyElements()
 
 function Enemy:new(scene, camera, player, x, y, element, isBoss)
     ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, Enemy)
     self.isBoss = isBoss or false
-    local hp = self.isBoss and ENEMY_HP * 3 or ENEMY_HP  -- Boss 3倍血量
+    local hp = self.isBoss and ENEMY_HP * (_enemyCfg.BOSS_HP_MULT or 3) or ENEMY_HP
     self.hp = hp
     self.maxHp = hp
-    -- Boss与小怪差异化属性
-    self.patrolSpeed = self.isBoss and 1.8 or PATROL_SPEED
-    self.chaseSpeed = self.isBoss and 1.8 or CHASE_SPEED
-    self.attackRange = self.isBoss and 2.0 or ATTACK_RANGE
-    self.patrolRange = self.isBoss and 1.0 or PATROL_RANGE
+    -- Boss与小怪差异化属性（从配置表读取）
+    self.patrolSpeed = self.isBoss and (_enemyCfg.BOSS_PATROL_SPEED or 1.8) or PATROL_SPEED
+    self.chaseSpeed = self.isBoss and (_enemyCfg.BOSS_CHASE_SPEED or 1.8) or CHASE_SPEED
+    self.attackRange = self.isBoss and (_enemyCfg.BOSS_ATTACK_RANGE or 2.0) or ATTACK_RANGE
+    self.patrolRange = self.isBoss and (_enemyCfg.BOSS_PATROL_RANGE or 1.0) or PATROL_RANGE
     self.alive = true
     self.scene = scene
     self.camera = camera
@@ -218,9 +214,9 @@ function Enemy:_createNode(scene, x, y)
         local bossRadius = 1.1
         local bossBoxH = 0.1  -- 极小中段，近似圆球
 
-        -- maskBits: 排除玩家(2)和敌人(4)，只与地面(1)碰撞，防止被小怪顶起
-        -- 0xFFFF & ~2 & ~4 = 65529
-        local MASK_NO_PLAYER = 65529
+        -- maskBits: 与地面(1)+玩家(2)碰撞，排除其他敌人(4)防止被小怪顶起
+        -- 0xFFFF & ~4 = 65531
+        local MASK_BOSS = 65531
 
         local boxShape = self.node:CreateComponent("CollisionBox2D")
         boxShape.size = Vector2(bossRadius * 2, bossBoxH)
@@ -228,7 +224,7 @@ function Enemy:_createNode(scene, x, y)
         boxShape.density = 1.0
         boxShape.friction = 0.0
         boxShape.categoryBits = 4  -- CATEGORY_ENEMY
-        boxShape.maskBits = MASK_NO_PLAYER
+        boxShape.maskBits = MASK_BOSS
 
         local topCircle = self.node:CreateComponent("CollisionCircle2D")
         topCircle.radius = bossRadius
@@ -236,7 +232,7 @@ function Enemy:_createNode(scene, x, y)
         topCircle.density = 1.0
         topCircle.friction = 0.0
         topCircle.categoryBits = 4  -- CATEGORY_ENEMY
-        topCircle.maskBits = MASK_NO_PLAYER
+        topCircle.maskBits = MASK_BOSS
 
         local bottomCircle = self.node:CreateComponent("CollisionCircle2D")
         bottomCircle.radius = bossRadius
@@ -244,13 +240,13 @@ function Enemy:_createNode(scene, x, y)
         bottomCircle.density = 1.0
         bottomCircle.friction = 0.0
         bottomCircle.categoryBits = 4  -- CATEGORY_ENEMY
-        bottomCircle.maskBits = MASK_NO_PLAYER
+        bottomCircle.maskBits = MASK_BOSS
     else
         -- 普通怪：胶囊碰撞体（矩形中段 + 上下两个圆形）
         local radius = 0.4
         local boxH = 1.2 - radius * 2
-        -- maskBits: 排除玩家(2)，与地面(1)+敌人(4)碰撞 = 0xFFFF & ~2 = 65533
-        local MASK_NO_PLAYER = 65533
+        -- maskBits: 与地面(1)+玩家(2)+敌人(4)都碰撞 = 0xFFFF
+        local MASK_ALL = 0xFFFF
 
         local boxShape = self.node:CreateComponent("CollisionBox2D")
         boxShape.size = Vector2(0.8, boxH)
@@ -258,7 +254,7 @@ function Enemy:_createNode(scene, x, y)
         boxShape.density = 1.0
         boxShape.friction = 0.0
         boxShape.categoryBits = 4  -- CATEGORY_ENEMY
-        boxShape.maskBits = MASK_NO_PLAYER
+        boxShape.maskBits = MASK_ALL
 
         local topCircle = self.node:CreateComponent("CollisionCircle2D")
         topCircle.radius = radius
@@ -266,7 +262,7 @@ function Enemy:_createNode(scene, x, y)
         topCircle.density = 1.0
         topCircle.friction = 0.0
         topCircle.categoryBits = 4  -- CATEGORY_ENEMY
-        topCircle.maskBits = MASK_NO_PLAYER
+        topCircle.maskBits = MASK_ALL
 
         local bottomCircle = self.node:CreateComponent("CollisionCircle2D")
         bottomCircle.radius = radius
@@ -274,7 +270,7 @@ function Enemy:_createNode(scene, x, y)
         bottomCircle.density = 1.0
         bottomCircle.friction = 0.0
         bottomCircle.categoryBits = 4  -- CATEGORY_ENEMY
-        bottomCircle.maskBits = MASK_NO_PLAYER
+        bottomCircle.maskBits = MASK_ALL
     end
 
     log:Write(LOG_INFO, "[Enemy] Created at (" .. x .. ", " .. y .. ") HP=" .. self.hp)

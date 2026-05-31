@@ -3,6 +3,14 @@
 LoadingScene = {}
 LoadingScene.__index = LoadingScene
 
+-- 需要预加载的音频资源
+local PRELOAD_SOUNDS = {
+    "audio/sfx/player_attack.ogg",
+    "audio/sfx/player_drop_attack.ogg",
+    "audio/sfx/player_hurt.ogg",
+    "audio/sfx/player_walk.ogg",
+}
+
 -- 需要预加载的所有纹理资源
 local PRELOAD_TEXTURES = {
     -- 玩家
@@ -10,6 +18,8 @@ local PRELOAD_TEXTURES = {
     "image/Player/player_walk.png",
     "image/Player/player_jump.png",
     "image/Player/player_die.png",
+    "image/Player/player_atk.png",
+    "image/Player/player_atk_end.png",
     -- 敌人
     "image/Enemy/fire/enemy_fire_walk.png",
     "image/Enemy/ice/enemy_ice_walk.png",
@@ -57,18 +67,30 @@ local PRELOAD_TEXTURES = {
     "image/sense_touch_off_20260530095555.png",
 }
 
+-- 合并所有需要预加载的资源（类型 + 路径）
+local PRELOAD_ALL = {}
+for _, p in ipairs(PRELOAD_TEXTURES) do
+    table.insert(PRELOAD_ALL, { type = "Texture2D", path = p })
+end
+for _, p in ipairs(PRELOAD_SOUNDS) do
+    table.insert(PRELOAD_ALL, { type = "Sound", path = p })
+end
+
 function LoadingScene:new(onComplete)
     ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, LoadingScene)
     self.onComplete = onComplete
-    self.totalCount = #PRELOAD_TEXTURES
+    self.totalCount = #PRELOAD_ALL
     self.loadedCount = 0
+    self.asyncPending = 0
+    self.asyncMode = false  -- 是否使用异步加载（DWP 模式）
     self.finished = false
     self.panel = nil
     self.progressText = nil
     self.progressBar = nil
     self.progressFill = nil
     self:_createUI()
+    self:_startPreload()
     return self
 end
 
@@ -130,7 +152,44 @@ function LoadingScene:_createUI()
     log:Write(LOG_INFO, "[Loading] UI created, " .. self.totalCount .. " resources to load")
 end
 
---- 每帧调用，逐步加载资源（每帧加载几个避免卡顿）
+--- 启动预加载：先尝试异步（DWP），如果资源都在本地则走同步快速路径
+function LoadingScene:_startPreload()
+    -- 检测是否有资源不在本地（DWP 模式下需要异步下载）
+    local missing = {}
+    for i, item in ipairs(PRELOAD_ALL) do
+        if not cache:Exists(item.path) then
+            table.insert(missing, i)
+        end
+    end
+
+    if #missing > 0 then
+        -- DWP 异步模式：逐个异步下载缺失资源
+        self.asyncMode = true
+        self.asyncPending = #missing
+        log:Write(LOG_INFO, "[Loading] DWP async mode: " .. #missing .. " resources to download")
+        for _, idx in ipairs(missing) do
+            local item = PRELOAD_ALL[idx]
+            cache:GetResourceAsync(item.type, item.path, function(res)
+                self.asyncPending = self.asyncPending - 1
+                self.loadedCount = self.loadedCount + 1
+                log:Write(LOG_DEBUG, "[Loading] Async loaded: " .. item.path .. " (remaining: " .. self.asyncPending .. ")")
+            end)
+        end
+        -- 已在本地的资源直接计数（同步加载不耗时）
+        self.loadedCount = self.totalCount - #missing
+        for i, item in ipairs(PRELOAD_ALL) do
+            if cache:Exists(item.path) then
+                cache:GetResource(item.type, item.path)
+            end
+        end
+    else
+        -- 全部在本地：同步快速路径
+        self.asyncMode = false
+        log:Write(LOG_INFO, "[Loading] Sync mode: all resources cached locally")
+    end
+end
+
+--- 每帧调用，更新加载进度
 function LoadingScene:update(dt)
     -- 已完成加载，等待延迟帧后回调
     if self.finished then
@@ -147,29 +206,45 @@ function LoadingScene:update(dt)
         return
     end
 
-    -- 每帧加载多个资源（加快速度）
-    local batchSize = 4
-    for i = 1, batchSize do
-        if self.loadedCount >= self.totalCount then
-            break
+    if self.asyncMode then
+        -- DWP 异步模式：等待所有异步回调完成
+        -- 进度 = 已加载数 / 总数
+        local progress = self.loadedCount / self.totalCount
+        local barW = self.progressBar:GetSize().x
+        self.progressFill:SetSize(math.floor(barW * progress), self.progressFill:GetSize().y)
+        self.progressText.text = self.loadedCount .. " / " .. self.totalCount
+
+        if self.asyncPending <= 0 then
+            self.finished = true
+            self.progressText.text = "Complete!"
+            log:Write(LOG_INFO, "[Loading] All resources preloaded (async)")
+            self._delayFrames = 2
         end
-        self.loadedCount = self.loadedCount + 1
-        local path = PRELOAD_TEXTURES[self.loadedCount]
-        cache:GetResource("Texture2D", path)
-    end
+    else
+        -- 同步模式：每帧加载多个资源（避免卡顿）
+        local batchSize = 4
+        for i = 1, batchSize do
+            if self.loadedCount >= self.totalCount then
+                break
+            end
+            self.loadedCount = self.loadedCount + 1
+            local item = PRELOAD_ALL[self.loadedCount]
+            cache:GetResource(item.type, item.path)
+        end
 
-    -- 更新进度UI
-    local progress = self.loadedCount / self.totalCount
-    local barW = self.progressBar:GetSize().x
-    self.progressFill:SetSize(math.floor(barW * progress), self.progressFill:GetSize().y)
-    self.progressText.text = self.loadedCount .. " / " .. self.totalCount
+        -- 更新进度UI
+        local progress = self.loadedCount / self.totalCount
+        local barW = self.progressBar:GetSize().x
+        self.progressFill:SetSize(math.floor(barW * progress), self.progressFill:GetSize().y)
+        self.progressText.text = self.loadedCount .. " / " .. self.totalCount
 
-    -- 加载完成
-    if self.loadedCount >= self.totalCount then
-        self.finished = true
-        self.progressText.text = "Complete!"
-        log:Write(LOG_INFO, "[Loading] All resources preloaded")
-        self._delayFrames = 2
+        -- 加载完成
+        if self.loadedCount >= self.totalCount then
+            self.finished = true
+            self.progressText.text = "Complete!"
+            log:Write(LOG_INFO, "[Loading] All resources preloaded (sync)")
+            self._delayFrames = 2
+        end
     end
 end
 

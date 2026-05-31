@@ -49,7 +49,7 @@ end
 
 --- 从 data/senses_config.lua 加载配置
 function SensesSystem:_loadConfig()
-    local configData = require("scripts/test_room/data/senses_config")
+    local configData = require("data.senses_config")
 
     for _, entry in ipairs(configData) do
         self.config[entry.sense] = {
@@ -84,10 +84,15 @@ end
 --- 当玩家受伤时调用（在 Player:takeDamage 之后）
 --- @return string|nil 返回被剥夺的感官名，或 nil（如果无可剥夺）
 function SensesSystem:onPlayerDamaged()
-    -- 如果所有随机感官已剥夺，则剥夺视觉（=死亡）
+    -- 随机池空了 → 按固定顺序剥夺：hearing(倒数第二) → vision(最后=死亡)
     if #self.randomPool == 0 then
-        self:_depriveSense(SensesSystem.VISION)
-        return SensesSystem.VISION
+        if not self.deprived[SensesSystem.HEARING] then
+            self:_depriveSense(SensesSystem.HEARING)
+            return SensesSystem.HEARING
+        else
+            self:_depriveSense(SensesSystem.VISION)
+            return SensesSystem.VISION
+        end
     end
 
     -- 随机选一个感官剥夺
@@ -271,6 +276,15 @@ function SensesSystem:reset()
     end
 
     log:Write(LOG_INFO, "[SensesSystem] Reset all senses")
+end
+
+--- 销毁UI元素（重新开始前调用）
+function SensesSystem:destroy()
+    if self.fadeOverlay then
+        self.fadeOverlay:Remove()
+        self.fadeOverlay = nil
+    end
+    log:Write(LOG_INFO, "[SensesSystem] Destroyed")
 end
 
 return SensesSystem

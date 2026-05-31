@@ -172,6 +172,16 @@ function CardUI:update(dt)
     -- 未来可加入卡牌消失/出现动画
 end
 
+--- 销毁卡牌UI元素（从 ui.root 移除），重新开始前调用
+function CardUI:destroy()
+    if self.container then
+        self.container:Remove()
+        self.container = nil
+    end
+    self.cardSlots = {}
+    log:Write(LOG_INFO, "[CardUI] Destroyed")
+end
+
 --- 显示卡牌UI
 function CardUI:show()
     self.visible = true

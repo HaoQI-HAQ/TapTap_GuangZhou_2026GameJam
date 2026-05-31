@@ -1,6 +1,6 @@
 -- 卡牌技能效果执行模块
 -- 负责：投射物创建/移动、AOE区域、控制效果等
-local CardData = require("scripts/test_room/card_data")
+local CardData = require("scripts/card_data")
 
 CardSkills = {}
 CardSkills.__index = CardSkills
@@ -66,26 +66,12 @@ function CardSkills:update(dt)
 end
 
 --- 重置所有效果（游戏重开时）
+--- 注意：场景重建后旧节点已被引擎释放，不能再调用 Remove()
 function CardSkills:reset()
-    -- 清除投射物
-    for _, p in ipairs(activeProjectiles) do
-        if p.node then p.node:Remove() end
-    end
+    -- 直接清空列表（场景重建时旧节点已被释放，调用 Remove() 会 crash）
     activeProjectiles = {}
-    -- 清除AOE
-    for _, a in ipairs(activeAOEs) do
-        if a.node then a.node:Remove() end
-    end
     activeAOEs = {}
-    -- 清除陷阱
-    for _, t in ipairs(activeTraps) do
-        if t.node then t.node:Remove() end
-    end
     activeTraps = {}
-    -- 清除墙壁
-    for _, w in ipairs(activeWalls) do
-        if w.node then w.node:Remove() end
-    end
     activeWalls = {}
 end
 

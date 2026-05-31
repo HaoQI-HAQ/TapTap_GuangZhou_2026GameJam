@@ -1,5 +1,5 @@
 -- 卡牌UI模块 - 右下角5张手牌（在平A按钮上方）
-local CardData = require("scripts/test_room/card_data")
+local CardData = require("scripts/card_data")
 
 CardUI = {}
 CardUI.__index = CardUI
@@ -156,6 +156,18 @@ function CardUI:_refreshCards(hand)
     end
 end
 
+--- 获取当前可见手牌数量
+---@return number
+function CardUI:getHandCount()
+    local count = 0
+    for _, slot in ipairs(self.cardSlots) do
+        if slot.active then
+            count = count + 1
+        end
+    end
+    return count
+end
+
 --- 获取 UI 槽位对应的真实 hand 索引
 ---@param uiSlot number 1-5 的UI槽位号
 ---@return number|nil 真实hand索引，无效则返回nil
@@ -170,6 +182,16 @@ end
 --- 每帧更新
 function CardUI:update(dt)
     -- 未来可加入卡牌消失/出现动画
+end
+
+--- 销毁卡牌UI元素（从 ui.root 移除），重新开始前调用
+function CardUI:destroy()
+    if self.container then
+        self.container:Remove()
+        self.container = nil
+    end
+    self.cardSlots = {}
+    log:Write(LOG_INFO, "[CardUI] Destroyed")
 end
 
 --- 显示卡牌UI

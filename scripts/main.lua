@@ -3,6 +3,8 @@ require "LuaScripts/Utilities/Sample"
 require "scripts/input_manager"
 require "scripts/menu_overlay"
 require "scripts/loading_scene"
+local LevelManager = require("scripts/level_manager")
+local PortalUI = require("scripts/portal_ui")
 
 -- 当前游戏模式："test_room" 或 "normal_mode"
 local currentMode = nil
@@ -46,6 +48,8 @@ local cardSystem = nil
 local cardUI = nil
 local cardSkills = nil
 local sensesSystem = nil
+local levelManager = nil
+local portalUI = nil
 
 -- 加载状态
 local loadingScene = nil
@@ -95,28 +99,88 @@ end
 
 --- 初始化游戏对象（根据已加载的模式脚本创建关卡内容）
 function InitGameObjects()
+    -- 销毁旧UI元素（防止重启时UI累积导致黑屏）
+    if sensesSystem then
+        sensesSystem:destroy()
+        sensesSystem = nil
+    end
+    if gameUI then
+        gameUI:destroy()
+        gameUI = nil
+    end
+    if cardUI then
+        cardUI:destroy()
+        cardUI = nil
+    end
+    if portalUI then
+        portalUI:destroy()
+        portalUI = nil
+    end
+    -- 移除旧敌人的UI元素（HP条 + 飘字）
+    for _, e in ipairs(enemies) do
+        if e.hpBarContainer then
+            e.hpBarContainer:Remove()
+        end
+        if e.floatingTexts then
+            for _, ft in ipairs(e.floatingTexts) do
+                if ft.text then ft.text:Remove() end
+            end
+            e.floatingTexts = {}
+        end
+    end
+
     -- 清空旧敌人列表
     enemies = {}
 
-    -- === 关卡一 ===
-    -- 主地面（100米宽）
-    Ground:new(scene_, 0, -3.0, 100.0, 1.0)
-    -- 浮空平台（y=0）
-    Ground:new(scene_, 4.0, 0.0, 5.0, 0.3)
+    -- === 使用关卡管理器构建关卡 ===
+    if not levelManager then
+        levelManager = LevelManager:new()
+    end
+
+    -- === 关卡背景 ===
+    local BG_IMAGES = {
+        "image/backgrounds/dungeon_rooms/room1_entrance.png",
+        "image/backgrounds/dungeon_rooms/room2_prison.png",
+        "image/backgrounds/dungeon_rooms/room3_sewer.png",
+        "image/backgrounds/dungeon_rooms/room4_altar.png",
+        "image/backgrounds/dungeon_rooms/room5_boss_throne.png",
+    }
+    -- 获取地形配置（需要先获取 groundWidth 用于背景缩放）
+    local groundWidth, platforms = levelManager:getGroundConfig()
+
+    -- === 关卡背景（按比例适配屏幕视野，cover策略）===
+    local bgPath = BG_IMAGES[levelManager:getCurrentLevel()] or BG_IMAGES[1]
+    local bgNode = scene_:CreateChild("Background")
+    bgNode.position = Vector3(0, 0, 0)
+    local bgSprite = bgNode:CreateComponent("StaticSprite2D")
+    bgSprite.orderInLayer = -100  -- 最底层绘制
+    local bgRes = cache:GetResource("Sprite2D", bgPath)
+    if bgRes then
+        bgSprite:SetSprite(bgRes)
+        local bgTexture = bgRes:GetTexture()
+        local texW = bgTexture:GetWidth() / 100.0   -- 纹理宽（单位：米）
+        local texH = bgTexture:GetHeight() / 100.0  -- 纹理高（单位：米）
+        -- 相机视野尺寸
+        local viewH = camera_.orthoSize * 2
+        local aspect = graphics:GetWidth() / graphics:GetHeight()
+        local viewW = viewH * aspect
+        -- cover 策略：取较大缩放比，保证背景覆盖整个视野且不变形
+        local scale = math.max(viewW / texW, viewH / texH)
+        bgNode:SetScale(scale)
+    end
+
+    -- 主地面
+    Ground:new(scene_, 0, -3.0, groundWidth, 1.0)
+    -- 浮空平台
+    for _, p in ipairs(platforms) do
+        Ground:new(scene_, p.x, p.y, p.w, p.h)
+    end
 
     -- 创建玩家
     player = Player:new(scene_, inputManager)
 
-    -- 关卡一敌人配置
-    local levelEnemies = {
-        { x = 2.5,  y = 1.0, element = "fire" },    -- 火怪（平台上）
-        { x = 4.0,  y = 1.0, element = "ice" },     -- 冰怪（平台上）
-        { x = 7.0,  y = -1.9, element = "fire" },   -- 火怪（地面）
-        { x = 10.0, y = -1.9, element = "thunder" }, -- 雷怪（地面右侧）
-        { x = 12.0, y = -1.9, element = "grass" },  -- 草怪（地面右侧远处）
-        { x = 14.0, y = -1.9, element = "earth" },  -- 土怪（地面更右侧）
-        { x = -5.0, y = -1.9, element = "fire", boss = true },  -- boss_01（玩家出生点左5m）
-    }
+    -- 从关卡管理器获取敌人配置
+    local levelEnemies = levelManager:generateEnemies()
     for _, info in ipairs(levelEnemies) do
         local e = Enemy:new(scene_, camera_, player, info.x, info.y, info.element, info.boss)
         table.insert(enemies, e)
@@ -129,6 +193,7 @@ function InitGameObjects()
 
     -- 创建游戏UI（含BACK按钮，默认隐藏）
     gameUI = GameUI:new(inputManager, player)
+    gameUI:setLevel(levelManager:getCurrentLevel(), levelManager.maxLevel)
 
     -- 创建五感剥夺系统
     sensesSystem = SensesSystem:new(scene_, player, gameUI)
@@ -170,7 +235,78 @@ function InitGameObjects()
         ShowGameOver()
     end
 
-    log:Write(LOG_INFO, "[Game] Game objects initialized for mode: " .. (currentMode or "unknown"))
+    -- === 传送门系统 ===
+    portalUI = PortalUI:new()
+    levelManager:createPortal(scene_)
+
+    -- 传送门回调
+    levelManager.onPortalActivated = function()
+        portalUI:showPortalHint()
+        log:Write(LOG_INFO, "[Game] Portal activated - Level " .. levelManager:getCurrentLevel())
+    end
+    levelManager.onTeleportStart = function()
+        portalUI:showCharging()
+    end
+    levelManager.onTeleportProgress = function(progress)
+        portalUI:setProgress(progress)
+        if progress <= 0 then
+            portalUI:hideCharging()
+        end
+    end
+    levelManager.onTeleportComplete = function(nextLevel)
+        portalUI:showComplete()
+        -- 延迟0.5秒后切换关卡
+        _scheduleLevelTransition(nextLevel)
+    end
+    levelManager.onEnemiesNotCleared = function()
+        portalUI:showEnemiesNotCleared()
+    end
+    levelManager.onGameComplete = function()
+        -- 通关！显示通关提示，延迟后回到主菜单
+        portalUI:showGameComplete()
+        _scheduleReturnToMenu(3.0)
+    end
+
+    log:Write(LOG_INFO, "[Game] Game objects initialized for mode: " .. (currentMode or "unknown") .. " Level: " .. levelManager:getCurrentLevel())
+end
+
+--- 延迟切换关卡（传送完成后调用）
+local transitionTimer = nil
+local transitionTarget = nil
+local returnToMenuTimer = nil
+
+function _scheduleLevelTransition(nextLevel)
+    transitionTimer = 0.5
+    transitionTarget = nextLevel
+end
+
+function _scheduleReturnToMenu(delay)
+    returnToMenuTimer = delay or 3.0
+end
+
+--- 执行关卡切换：重建场景，保留玩家状态
+function _doLevelTransition(nextLevel)
+    log:Write(LOG_INFO, "[Game] === Transitioning to Level " .. nextLevel .. " ===")
+
+    -- 重建场景
+    CreateScene()
+    SetupCamera()
+
+    -- 重新初始化游戏对象（levelManager.currentLevel 已更新）
+    InitGameObjects()
+
+    -- 启动新关卡
+    cameraNode.position = Vector3(0, -1.9, -10)
+    physicsWorld_.enabled = true
+    scene_.updateEnabled = true
+    gamePaused = false
+    gameUI:show()
+    gameUI:resetCountdown()
+    cardSystem:reset()
+    cardSkills:reset()
+    cardUI:show()
+
+    log:Write(LOG_INFO, "[Game] Level " .. nextLevel .. " started!")
 end
 
 function CreateScene()
@@ -198,13 +334,23 @@ function SetupCamera()
 
     local viewport = Viewport:new(scene_, camera_)
     renderer:SetViewport(0, viewport)
-    renderer.defaultZone.fogColor = Color(0.6, 0.8, 1.0, 1.0)
+    renderer.defaultZone.fogColor = Color(0.05, 0.05, 0.08, 1.0)  -- 深色背景匹配地牢
 end
 
 --- 从菜单进入游戏：加载模式脚本、重建场景、初始化对象
 function EnterGame(mode)
     -- 加载对应模式的脚本
     LoadModeScripts(mode)
+
+    -- 重置关卡管理器（从第一关开始）
+    if levelManager then
+        levelManager:reset()
+    else
+        levelManager = LevelManager:new()
+    end
+    -- 清除切换计时器
+    transitionTimer = nil
+    transitionTarget = nil
 
     -- 重建场景（彻底清除旧游戏对象）
     CreateScene()
@@ -469,11 +615,59 @@ function HandleUpdate(eventType, eventData)
     cardSkills:update(dt)
     cardUI:update(dt)
 
+    -- 键盘快捷键开牌：根据手牌数动态映射右侧按键
+    -- 5张=YUIOP, 4张=UIOP, 3张=IOP, 2张=OP, 1张=P
+    local CARD_KEYS = { KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P }
+    local handCount = cardUI and cardUI:getHandCount() or 0
+    if handCount > 0 then
+        local keyOffset = 5 - handCount  -- 从第几个键开始
+        for i = 1, handCount do
+            if input:GetKeyPress(CARD_KEYS[keyOffset + i]) then
+                local idx = cardUI:getHandIndex(i)
+                if idx then cardSystem:useCard(idx) end
+                break
+            end
+        end
+    end
+
     -- 更新五感剥夺系统
     sensesSystem:update(dt)
 
     -- 更新UI（血量显示+倒计时）
     gameUI:update(dt)
+
+    -- 更新关卡管理器（传送门检测）
+    if levelManager and not player:isDead() then
+        local playerPos = player:getPosition()
+        levelManager:update(dt, playerPos, enemies)
+    end
+
+    -- 更新传送门 UI（提示自动隐藏计时）
+    if portalUI then
+        portalUI:update(dt)
+    end
+
+    -- 关卡切换延迟计时器
+    if transitionTimer then
+        transitionTimer = transitionTimer - dt
+        if transitionTimer <= 0 then
+            local target = transitionTarget
+            transitionTimer = nil
+            transitionTarget = nil
+            _doLevelTransition(target)
+            return  -- 本帧不再执行后续逻辑（场景已重建）
+        end
+    end
+
+    -- 通关回到主菜单计时器
+    if returnToMenuTimer then
+        returnToMenuTimer = returnToMenuTimer - dt
+        if returnToMenuTimer <= 0 then
+            returnToMenuTimer = nil
+            HandleRestart()
+            return
+        end
+    end
 
     -- 相机延迟跟随玩家
     local targetPos = player:getPosition()
@@ -482,6 +676,12 @@ function HandleUpdate(eventType, eventData)
     local newX = camPos.x + (targetPos.x - camPos.x) * lerpSpeed * dt
     local newY = camPos.y + (targetPos.y - camPos.y) * lerpSpeed * dt
     cameraNode.position = Vector3(newX, newY, -10)
+
+    -- 背景跟随相机
+    local bgNode = scene_:GetChild("Background")
+    if bgNode then
+        bgNode.position = Vector3(newX, newY, 0)
+    end
 end
 
 -- 暂停UI
@@ -571,20 +771,17 @@ local gameOverContainer = nil
 
 function _createGameOverUI()
     local uiRoot = ui.root
+    local w = uiRoot.width
+    local h = uiRoot.height
 
-    gameOverContainer = UIElement:new()
+    -- 直接用 BorderImage 作为容器（单层，避免双重遮罩）
+    gameOverContainer = BorderImage:new()
     uiRoot:AddChild(gameOverContainer)
+    gameOverContainer:SetSize(w, h)
     gameOverContainer:SetAlignment(HA_LEFT, VA_TOP)
     gameOverContainer:SetPosition(0, 0)
     gameOverContainer.priority = 900
-
-    -- 黑色遮罩铺满
-    local bg = BorderImage:new()
-    gameOverContainer:AddChild(bg)
-    bg:SetAlignment(HA_LEFT, VA_TOP)
-    bg:SetPosition(0, 0)
-    bg.color = Color(0, 0, 0, 0.85)
-    self_gameOverBg = bg
+    gameOverContainer.color = Color(0, 0, 0, 0.85)
 
     -- Game Over 文字（居中）
     local title = Text:new()
@@ -607,7 +804,7 @@ function _createGameOverUI()
     local btnText = Text:new()
     restartBtn:AddChild(btnText)
     btnText:SetStyleAuto()
-    btnText.text = "RESTART"
+    btnText.text = "返回菜单"
     btnText:SetFontSize(22)
     btnText:SetAlignment(HA_CENTER, VA_CENTER)
 
@@ -622,9 +819,6 @@ function ShowGameOver()
         local w = ui.root.width
         local h = ui.root.height
         gameOverContainer:SetSize(w, h)
-        if self_gameOverBg then
-            self_gameOverBg:SetSize(w, h)
-        end
         gameOverContainer.visible = true
     end
     physicsWorld_.enabled = false
@@ -642,7 +836,46 @@ function HandleRestart(eventType, eventData)
     if gameOverContainer then
         gameOverContainer.visible = false
     end
-    EnterGame(currentMode or "test_room")
+    -- 销毁游戏UI，回到主菜单
+    if sensesSystem then
+        sensesSystem:destroy()
+        sensesSystem = nil
+    end
+    if gameUI then
+        gameUI:destroy()
+        gameUI = nil
+    end
+    if cardUI then
+        cardUI:destroy()
+        cardUI = nil
+    end
+    if portalUI then
+        portalUI:destroy()
+        portalUI = nil
+    end
+    for _, e in ipairs(enemies) do
+        if e.hpBarContainer then
+            e.hpBarContainer:Remove()
+        end
+        if e.floatingTexts then
+            for _, ft in ipairs(e.floatingTexts) do
+                if ft.text then ft.text:Remove() end
+            end
+            e.floatingTexts = {}
+        end
+    end
+    enemies = {}
+    player = nil
+    -- 重置关卡和切换计时器
+    if levelManager then
+        levelManager:reset()
+    end
+    transitionTimer = nil
+    transitionTarget = nil
+    returnToMenuTimer = nil
+    physicsWorld_.enabled = false
+    menuOverlay:show()
+    log:Write(LOG_INFO, "[Game] Game Over -> Return to menu")
 end
 
 function Stop()

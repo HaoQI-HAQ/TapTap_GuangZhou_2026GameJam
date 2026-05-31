@@ -2,40 +2,60 @@
 Player = {}
 Player.__index = Player
 
-local MOVE_SPEED = 3.0
-local JUMP_FORCE = 5.0
-local MAX_JUMPS = 2        -- 最大跳跃次数（2段跳）
-local FALL_MULTIPLIER = 2  -- 下落加速倍数
-local MAX_HP = 5           -- 最大生命值
+local ConfigLoader = require("config_loader")
+local _playerCfg = ConfigLoader.loadPlayerConfig()
 
-local INVINCIBLE_DURATION = 1.5  -- 无敌帧持续时间（秒）
-local BLINK_INTERVAL = 0.1       -- 闪烁间隔
-local NEAR_DEATH_SPEED_MULT = 0.6  -- 濒死时移动速度倍率
-local ATTACK_RANGE = 1.5         -- 平A攻击距离（米）
-local ATTACK_DAMAGE = 1           -- 平A伤害
-local ATTACK_COOLDOWN = 0.5       -- 攻击冷却（秒）
-local SLAM_SPEED = 15.0           -- 下砸速度（米/秒）
-local SLAM_AOE_RANGE = 2.0        -- 下砸AOE范围（米）
-local SLAM_DAMAGE = 3             -- 下砸伤害
-local SLAM_KNOCKBACK = 8.0        -- 击飞力度
+local MOVE_SPEED = _playerCfg.MOVE_SPEED or 3.0
+local JUMP_FORCE = _playerCfg.JUMP_FORCE or 5.0
+local MAX_JUMPS = _playerCfg.MAX_JUMPS or 2
+local FALL_MULTIPLIER = _playerCfg.FALL_MULTIPLIER or 2
+local MAX_HP = _playerCfg.MAX_HP or 5
+
+local INVINCIBLE_DURATION = _playerCfg.INVINCIBLE_DURATION or 1.5
+local BLINK_INTERVAL = _playerCfg.BLINK_INTERVAL or 0.1
+local NEAR_DEATH_SPEED_MULT = _playerCfg.NEAR_DEATH_SPEED_MULT or 0.6
+local ATTACK_RANGE = _playerCfg.ATTACK_RANGE or 1.5
+local ATTACK_DAMAGE = _playerCfg.ATTACK_DAMAGE or 1
+local ATTACK_COOLDOWN = _playerCfg.ATTACK_COOLDOWN or 0.5
+local SLAM_SPEED = _playerCfg.SLAM_SPEED or 15.0
+local SLAM_AOE_RANGE = _playerCfg.SLAM_AOE_RANGE or 2.0
+local SLAM_DAMAGE = _playerCfg.SLAM_DAMAGE or 3
+local SLAM_KNOCKBACK = _playerCfg.SLAM_KNOCKBACK or 8.0
+local SLAM_INVINCIBLE_DURATION = 1.0  -- 下落攻击落地后无敌帧时长
+local HEAD_PUSH_FORCE = 4.0           -- 站在敌人头顶时向后推力
 
 -- 精灵图配置
 local WALK_SHEET = "image/Player/player_walk.png"
 local IDLE_SHEET = "image/Player/player_idle.png"
 local JUMP_SHEET = "image/Player/player_jump.png"
 local DIE_SHEET  = "image/Player/player_die.png"
+local ATK_SHEET  = "image/Player/player_atk.png"
+local ATK_END_SHEET = "image/Player/player_atk_end.png"
 local WALK_COLS = 6        -- 行走6帧
 local IDLE_COLS = 6        -- 待机6帧
 local JUMP_COLS = 6        -- 跳跃6帧
 local DIE_COLS  = 10       -- 死亡10帧
 local DIE_FRAME_WIDTH = 205  -- 每帧像素宽（2048/10≈205）
 local DIE_ANIM_DURATION = 1.5  -- 死亡动画总时长（秒）
+local ATK_COLS = 4         -- 攻击动画列数
+local ATK_ROWS = 4         -- 攻击动画行数
+local ATK_FRAMES = 16      -- 攻击总帧数（4x4）
+local ATK_FPS = 24         -- 攻击动画帧率（快速挥砍）
+local ATK_END_COLS = 4     -- 收刀动画列数
+local ATK_END_ROWS = 4     -- 收刀动画行数
+local ATK_END_FRAMES = 16  -- 收刀总帧数（4x4）
+local ATK_END_FPS = 20     -- 收刀动画帧率
 local ANIM_FPS = 10        -- 行走动画帧率
 local IDLE_FRAME_INTERVAL = 1.5  -- 待机每1.5秒换一帧
 local JUMP_AIRTIME = 0.8   -- 预估滞空时间（秒），用于计算跳跃帧率
 local PLAYER_WIDTH = 0.7   -- 精灵宽度（米）
 local PLAYER_HEIGHT = 2.4  -- 精灵高度（米）
 local SPRITE_OFFSET_Y = -0.6  -- 精灵视觉下移，让脚踩草地
+-- 攻击动画帧为正方形(384x384/256x256)，整体缩小10%
+local ATK_SPRITE_SCALE = 0.9  -- 攻击时缩放比例（90%）
+local ATK_SPRITE_WIDTH = PLAYER_HEIGHT * ATK_SPRITE_SCALE   -- 正方形帧：宽=高，缩小10%
+local ATK_SPRITE_HEIGHT = PLAYER_HEIGHT * ATK_SPRITE_SCALE  -- 攻击时高度也缩小10%
+local ATK_OFFSET_Y = 0.3  -- 攻击时精灵上移距离（米）
 
 function Player:new(scene, inputManager)
     ---@diagnostic disable-next-line: redefined-local
@@ -60,6 +80,8 @@ function Player:new(scene, inputManager)
     self.attackCooldown = 0
     self.attackPressed = false
     self.targetEnemy = nil
+    self.attacking = false       -- 正在播放攻击动画
+    self.attackAnimDone = false   -- 攻击动画是否播完
     -- 下砸攻击
     self.slamming = false
     -- 施法状态（卡牌使用时锁定移动）
@@ -88,11 +110,13 @@ function Player:_createNode(scene)
     self.spriteNode.scale = Vector3(PLAYER_WIDTH, 1.0, PLAYER_HEIGHT)
     self.spriteNode.position = Vector3(0, SPRITE_OFFSET_Y, 0)
 
-    -- 加载四套纹理
+    -- 加载纹理
     self.walkTexture = cache:GetResource("Texture2D", WALK_SHEET)
     self.idleTexture = cache:GetResource("Texture2D", IDLE_SHEET)
     self.jumpTexture = cache:GetResource("Texture2D", JUMP_SHEET)
     self.dieTexture  = cache:GetResource("Texture2D", DIE_SHEET)
+    self.atkTexture  = cache:GetResource("Texture2D", ATK_SHEET)
+    self.atkEndTexture = cache:GetResource("Texture2D", ATK_END_SHEET)
 
     if self.walkTexture == nil then
         log:Write(LOG_ERROR, "[Player] Failed to load walk texture: " .. WALK_SHEET)
@@ -126,7 +150,7 @@ function Player:_createNode(scene)
 
     -- 碰撞分类常量
     -- CATEGORY_GROUND = 1, CATEGORY_PLAYER = 2, CATEGORY_ENEMY = 4
-    local MASK_NO_ENEMY = 65531     -- 0xFFFF & ~4 = 0xFFFB，永久排除敌人碰撞
+    local MASK_ALL = 0xFFFF  -- 与所有物体碰撞（包括敌人）
 
     -- 胶囊碰撞体：矩形中段 + 上下两个圆形
     -- 总体：宽0.5m，高1.0m，上0m，下1.0m（非对称）
@@ -140,7 +164,7 @@ function Player:_createNode(scene)
     boxShape.density = 1.0
     boxShape.friction = 0.3
     boxShape.categoryBits = 2  -- CATEGORY_PLAYER
-    boxShape.maskBits = MASK_NO_ENEMY  -- 永久不与敌人碰撞
+    boxShape.maskBits = MASK_ALL  -- 与敌人碰撞
 
     local topCircle = self.node:CreateComponent("CollisionCircle2D")
     topCircle.radius = radius
@@ -148,7 +172,7 @@ function Player:_createNode(scene)
     topCircle.density = 1.0
     topCircle.friction = 0.3
     topCircle.categoryBits = 2  -- CATEGORY_PLAYER
-    topCircle.maskBits = MASK_NO_ENEMY  -- 永久不与敌人碰撞
+    topCircle.maskBits = MASK_ALL  -- 与敌人碰撞
 
     local bottomCircle = self.node:CreateComponent("CollisionCircle2D")
     bottomCircle.radius = radius
@@ -156,7 +180,7 @@ function Player:_createNode(scene)
     bottomCircle.density = 1.0
     bottomCircle.friction = 0.0  -- 底部零摩擦，防止卡边
     bottomCircle.categoryBits = 2  -- CATEGORY_PLAYER
-    bottomCircle.maskBits = MASK_NO_ENEMY  -- 永久不与敌人碰撞
+    bottomCircle.maskBits = MASK_ALL  -- 与敌人碰撞
 
     -- 保存碰撞体引用（无敌帧时修改maskBits）
     self.collisionShapes = { boxShape, topCircle, bottomCircle }
@@ -269,6 +293,9 @@ function Player:update(dt)
         self.jumpCount = 0
     end
 
+    -- 检测是否站在敌人头顶，施加向后推力
+    self:_checkOnEnemyHead()
+
     -- 跳跃（按下瞬间触发，限制2段）
     local jumpAction = self.inputManager:isActionActive(InputManager.ACTION_JUMP)
     if jumpAction and not self.jumpPressed then
@@ -306,6 +333,12 @@ end
 -- 精灵动画更新
 function Player:_updateAnimation(dt)
     if self.material == nil then return end
+
+    -- 攻击动画优先级最高（attack → attack_end → 正常状态）
+    if self.attacking then
+        self:_updateAttackAnimation(dt)
+        return
+    end
 
     -- 确定当前应该播放的动画状态（优先级：jump > walk > idle）
     local targetAnim
@@ -383,7 +416,7 @@ function Player:_updateAnimation(dt)
         end
     end
 
-    -- 更新 UV offset 显示当前帧
+    -- 更新 UV offset 显示当前帧（单行精灵图）
     local uOffset = self.currentFrame / cols
     local uScale = 1.0 / cols
 
@@ -395,9 +428,100 @@ function Player:_updateAnimation(dt)
     end
 end
 
+-- 攻击动画更新（4x4 网格精灵图）
+function Player:_updateAttackAnimation(dt)
+    self.animTime = self.animTime + dt
+
+    local cols, rows, totalFrames, fps, texture
+    if self.currentAnim == "attack" then
+        cols = ATK_COLS
+        rows = ATK_ROWS
+        totalFrames = ATK_FRAMES
+        fps = ATK_FPS
+        texture = self.atkTexture
+    else  -- "attack_end"
+        cols = ATK_END_COLS
+        rows = ATK_END_ROWS
+        totalFrames = ATK_END_FRAMES
+        fps = ATK_END_FPS
+        texture = self.atkEndTexture
+    end
+
+    local frameDuration = 1.0 / fps
+    if self.animTime >= frameDuration then
+        self.animTime = self.animTime - frameDuration
+        self.currentFrame = self.currentFrame + 1
+    end
+
+    -- 动画播完检查
+    if self.currentFrame >= totalFrames then
+        if self.currentAnim == "attack" then
+            -- 攻击动画播完 → 切到收刀动画
+            self.currentAnim = "attack_end"
+            self.currentFrame = 0
+            self.animTime = 0
+            if self.material and self.atkEndTexture then
+                self.material:SetTexture(0, self.atkEndTexture)
+            end
+        else
+            -- 收刀动画播完 → 退出攻击状态
+            self.attacking = false
+            self.attackAnimDone = true
+            self.currentAnim = "idle"
+            self.currentFrame = 0
+            self.animTime = 0
+            if self.material then
+                if self.idleTexture then
+                    self.material:SetTexture(0, self.idleTexture)
+                end
+                -- 重置 VOffset 回单行模式
+                self.material:SetShaderParameter("VOffset", Variant(Vector4(0, 1.0, 0, 0)))
+            end
+            -- 恢复正常精灵比例和位置
+            if self.spriteNode then
+                self.spriteNode.scale = Vector3(PLAYER_WIDTH, 1.0, PLAYER_HEIGHT)
+                self.spriteNode.position = Vector3(0, SPRITE_OFFSET_Y, 0)
+            end
+            return
+        end
+    end
+
+    -- 计算 4x4 网格中的行列位置
+    local frame = math.min(self.currentFrame, totalFrames - 1)
+    local col = frame % cols
+    local row = math.floor(frame / cols)
+
+    local uScale = 1.0 / cols
+    local vScale = 1.0 / rows
+    local uOfs = col * uScale
+    local vOfs = row * vScale
+
+    -- 翻转方向
+    if self.facingRight then
+        self.material:SetShaderParameter("UOffset", Variant(Vector4(uScale, 0, 0, uOfs)))
+    else
+        self.material:SetShaderParameter("UOffset", Variant(Vector4(-uScale, 0, 0, uOfs + uScale)))
+    end
+    self.material:SetShaderParameter("VOffset", Variant(Vector4(0, vScale, 0, vOfs)))
+end
+
 -- 执行平A攻击（查找范围内最近的存活敌人）
 function Player:_doAttack()
     self.attackCooldown = ATTACK_COOLDOWN
+    -- 进入攻击动画状态
+    self.attacking = true
+    self.attackAnimDone = false
+    self.currentAnim = "attack"
+    self.currentFrame = 0
+    self.animTime = 0
+    if self.material and self.atkTexture then
+        self.material:SetTexture(0, self.atkTexture)
+    end
+    -- 攻击帧是正方形，整体缩小20%并上移
+    if self.spriteNode then
+        self.spriteNode.scale = Vector3(ATK_SPRITE_WIDTH, 1.0, ATK_SPRITE_HEIGHT)
+        self.spriteNode.position = Vector3(0, SPRITE_OFFSET_Y + ATK_OFFSET_Y, 0)
+    end
     if self.sfxSource and self.sndAttack then self.sfxSource:Play(self.sndAttack) end
     if not self.enemies then return end
 
@@ -466,6 +590,12 @@ function Player:_slamLand(fullCircle)
     end
     local shape = fullCircle and "circle" or "semicircle"
     log:Write(LOG_INFO, "[Player] Slam landed! AOE=" .. shape .. " range=" .. SLAM_AOE_RANGE .. "m")
+
+    -- 下落攻击落地后给予1s无敌帧
+    self.invincible = true
+    self.invincibleTimer = SLAM_INVINCIBLE_DURATION
+    self.blinkTimer = 0
+    log:Write(LOG_INFO, "[Player] Slam invincible ON for " .. SLAM_INVINCIBLE_DURATION .. "s")
 end
 
 -- 检测下砸是否踩到敌人（玩家脚底与敌人头顶重叠）
@@ -486,6 +616,30 @@ function Player:_checkStompEnemy()
         end
     end
     return false
+end
+
+-- 检测玩家是否站在敌人头顶（非下砸状态），施加向后推力使玩家离开
+function Player:_checkOnEnemyHead()
+    if not self.enemies then return end
+    if self.slamming then return end  -- 下砸中不做推力
+
+    local myPos = self.node.position
+    local footY = myPos.y - 0.7  -- 玩家脚底Y
+
+    for _, e in ipairs(self.enemies) do
+        if e:isAlive() and e.node then
+            local ePos = e.node.position
+            local distX = math.abs(myPos.x - ePos.x)
+            local enemyTopY = ePos.y + 0.6  -- 敌人头顶Y
+            -- 水平距离近且玩家脚底在敌人头顶附近
+            if distX <= 0.8 and footY <= enemyTopY + 0.3 and footY >= ePos.y then
+                -- 向远离敌人的方向施加推力
+                local pushDir = (myPos.x >= ePos.x) and 1 or -1
+                self.body:ApplyLinearImpulseToCenter(Vector2(HEAD_PUSH_FORCE * pushDir, 2.0), true)
+                return
+            end
+        end
+    end
 end
 
 -- 显示下砸AOE范围（fullCircle=true圆形，false=半圆）
@@ -634,15 +788,20 @@ end
 function Player:_enterDeath()
     self.dead = true
     self.deathTimer = 0
+    self.attacking = false  -- 中断攻击动画
     self.body:SetLinearVelocity(Vector2(0, 0))
     -- 切换到死亡动画纹理
     if self.material and self.dieTexture then
         self.material:SetTexture(0, self.dieTexture)
         self.material:SetShaderParameter("MatDiffColor", Variant(Color(1, 1, 1, 1)))
+        -- 重置 VOffset 回单行模式
+        self.material:SetShaderParameter("VOffset", Variant(Vector4(0, 1.0, 0, 0)))
     end
-    -- 确保精灵可见
+    -- 恢复精灵比例和位置（攻击中被击杀时需要）
     if self.spriteNode then
         self.spriteNode.enabled = true
+        self.spriteNode.scale = Vector3(PLAYER_WIDTH, 1.0, PLAYER_HEIGHT)
+        self.spriteNode.position = Vector3(0, SPRITE_OFFSET_Y, 0)
     end
     log:Write(LOG_INFO, "[Player] Dead! Playing die animation")
 end
@@ -692,6 +851,8 @@ function Player:reset()
     self.attackPressed = false
     self.slamming = false
     self.castingCard = false
+    self.attacking = false
+    self.attackAnimDone = false
     self.isMoving = false
     self.currentAnim = "idle"
     self.currentFrame = 0
@@ -700,10 +861,14 @@ function Player:reset()
     self.node.rotation = Quaternion(0, 0, 0)
     if self.spriteNode then
         self.spriteNode.enabled = true
+        self.spriteNode.scale = Vector3(PLAYER_WIDTH, 1.0, PLAYER_HEIGHT)
+        self.spriteNode.position = Vector3(0, SPRITE_OFFSET_Y, 0)
     end
     if self.material then
         self.material:SetShaderParameter("MatDiffColor", Variant(Color(1, 1, 1, 1)))
         self.material:SetTexture(0, self.idleTexture or self.walkTexture)
+        -- 重置 VOffset 回单行模式
+        self.material:SetShaderParameter("VOffset", Variant(Vector4(0, 1.0, 0, 0)))
     end
     self.body:SetLinearVelocity(Vector2(0, 0))
     log:Write(LOG_INFO, "[Player] Reset to initial state")
