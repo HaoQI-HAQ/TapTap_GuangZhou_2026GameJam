@@ -13,6 +13,12 @@ local PRELOAD_SOUNDS = {
 
 -- 需要预加载的所有纹理资源
 local PRELOAD_TEXTURES = {
+    -- 开始界面背景
+    "image/UI/start_bg.png",
+    -- 游戏操控UI
+    "image/UI/joystick_base.png",
+    "image/UI/btn_attack.png",
+    "image/UI/btn_jump.png",
     -- 玩家
     "image/Player/player_idle.png",
     "image/Player/player_walk.png",

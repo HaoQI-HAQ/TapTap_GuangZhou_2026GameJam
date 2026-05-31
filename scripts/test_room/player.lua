@@ -154,21 +154,22 @@ function Player:_createNode(scene)
 
     -- 胶囊碰撞体：矩形中段 + 上下两个圆形
     -- 总体：宽0.5m，高1.0m，上0m，下1.0m（非对称）
+    -- 关键：中段矩形比圆形窄，确保只有圆形接触平台边缘（防止卡边）
     local radius = 0.25  -- 半径 = 宽度/2
     local boxH = 0.5     -- 中段矩形高度
     local boxCenterY = -0.5  -- 矩形中心偏下
 
     local boxShape = self.node:CreateComponent("CollisionBox2D")
-    boxShape.size = Vector2(0.5, boxH)
+    boxShape.size = Vector2(radius * 2 - 0.06, boxH)  -- 比圆形窄0.06m，防止尖角卡边
     boxShape.center = Vector2(0, boxCenterY)
     boxShape.density = 1.0
-    boxShape.friction = 0.3
+    boxShape.friction = 0.0  -- 中段零摩擦，不接触地面
     boxShape.categoryBits = 2  -- CATEGORY_PLAYER
     boxShape.maskBits = MASK_ALL  -- 与敌人碰撞
 
     local topCircle = self.node:CreateComponent("CollisionCircle2D")
     topCircle.radius = radius
-    topCircle.center = Vector2(0, boxCenterY + boxH / 2)  -- (0, 0.45)
+    topCircle.center = Vector2(0, boxCenterY + boxH / 2)
     topCircle.density = 1.0
     topCircle.friction = 0.3
     topCircle.categoryBits = 2  -- CATEGORY_PLAYER
@@ -176,9 +177,10 @@ function Player:_createNode(scene)
 
     local bottomCircle = self.node:CreateComponent("CollisionCircle2D")
     bottomCircle.radius = radius
-    bottomCircle.center = Vector2(0, boxCenterY - boxH / 2)  -- (0, -0.75)
+    bottomCircle.center = Vector2(0, boxCenterY - boxH / 2)
     bottomCircle.density = 1.0
-    bottomCircle.friction = 0.0  -- 底部零摩擦，防止卡边
+    bottomCircle.friction = 0.3  -- 底部保留摩擦防止打滑
+    bottomCircle.restitution = 0.0  -- 无弹性
     bottomCircle.categoryBits = 2  -- CATEGORY_PLAYER
     bottomCircle.maskBits = MASK_ALL  -- 与敌人碰撞
 

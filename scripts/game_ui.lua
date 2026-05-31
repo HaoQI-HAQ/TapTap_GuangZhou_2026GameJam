@@ -97,12 +97,19 @@ function GameUI:_createMoveButtons()
     container:SetPosition(20, -20)
     table.insert(self.elements, container)
 
-    -- 底座背景（圆形外框）
+    -- 底座背景（使用图片）
     local base = BorderImage:new()
     container:AddChild(base)
     base:SetSize(joystickSize, joystickSize)
     base:SetPosition(0, 0)
-    base.color = Color(0.3, 0.3, 0.3, 0.0)
+    local baseTex = cache:GetResource("Texture2D", "image/UI/joystick_base.png")
+    if baseTex then
+        base:SetTexture(baseTex)
+        base:SetImageRect(IntRect(0, 0, baseTex:GetWidth(), baseTex:GetHeight()))
+        base.color = Color(1.0, 1.0, 1.0, 0.8)
+    else
+        base.color = Color(0.3, 0.3, 0.3, 0.5)
+    end
 
     -- 摇杆拇指（可拖动）
     local thumb = BorderImage:new()
@@ -112,7 +119,7 @@ function GameUI:_createMoveButtons()
     local centerX = (joystickSize - thumbSize) / 2
     local centerY = (joystickSize - thumbSize) / 2
     thumb:SetPosition(centerX, centerY)
-    thumb.color = Color(0.8, 0.8, 0.8, 0.4)
+    thumb.color = Color(1.0, 1.0, 1.0, 0.6)
 
     self.joystickContainer = container
     self.joystickThumb = thumb
@@ -125,35 +132,65 @@ function GameUI:_createMoveButtons()
     self.joystickMaxDist = (joystickSize - thumbSize) / 2
 end
 
--- 右下角跳跃按钮
+-- 右下角跳跃按钮（使用图片）
 function GameUI:_createJumpButton()
     local uiRoot = ui.root
 
+    local btnSize = 70
     local jumpContainer = UIElement:new()
     uiRoot:AddChild(jumpContainer)
     jumpContainer:SetAlignment(HA_RIGHT, VA_BOTTOM)
-    jumpContainer:SetSize(70, 70)
+    jumpContainer:SetSize(btnSize, btnSize)
     jumpContainer:SetPosition(-20, -20)
     table.insert(self.elements, jumpContainer)
 
-    self.btnJump = self:_createButton(jumpContainer, "^", 10, 10)
+    self.btnJump = Button:new()
+    jumpContainer:AddChild(self.btnJump)
+    self.btnJump:SetSize(btnSize, btnSize)
+    self.btnJump:SetPosition(0, 0)
+
+    local jumpImg = BorderImage:new()
+    self.btnJump:AddChild(jumpImg)
+    jumpImg:SetSize(btnSize, btnSize)
+    jumpImg:SetAlignment(HA_CENTER, VA_CENTER)
+    local jumpTex = cache:GetResource("Texture2D", "image/UI/btn_jump.png")
+    if jumpTex then
+        jumpImg:SetTexture(jumpTex)
+        jumpImg:SetImageRect(IntRect(0, 0, jumpTex:GetWidth(), jumpTex:GetHeight()))
+        jumpImg.color = Color(1.0, 1.0, 1.0, 0.9)
+    end
 
     SubscribeToEvent(self.btnJump, "Pressed", "HandleUIJumpPressed")
     SubscribeToEvent(self.btnJump, "Released", "HandleUIJumpReleased")
 end
 
--- 右下角攻击按钮（跳跃按钮上方）
+-- 右下角攻击按钮（跳跃按钮上方，使用图片）
 function GameUI:_createAttackButton()
     local uiRoot = ui.root
 
+    local btnSize = 70
     local attackContainer = UIElement:new()
     uiRoot:AddChild(attackContainer)
     attackContainer:SetAlignment(HA_RIGHT, VA_BOTTOM)
-    attackContainer:SetSize(70, 70)
-    attackContainer:SetPosition(-20, -80)
+    attackContainer:SetSize(btnSize, btnSize)
+    attackContainer:SetPosition(-20, -100)
     table.insert(self.elements, attackContainer)
 
-    self.btnAttack = self:_createButton(attackContainer, "A", 10, 10)
+    self.btnAttack = Button:new()
+    attackContainer:AddChild(self.btnAttack)
+    self.btnAttack:SetSize(btnSize, btnSize)
+    self.btnAttack:SetPosition(0, 0)
+
+    local atkImg = BorderImage:new()
+    self.btnAttack:AddChild(atkImg)
+    atkImg:SetSize(btnSize, btnSize)
+    atkImg:SetAlignment(HA_CENTER, VA_CENTER)
+    local atkTex = cache:GetResource("Texture2D", "image/UI/btn_attack.png")
+    if atkTex then
+        atkImg:SetTexture(atkTex)
+        atkImg:SetImageRect(IntRect(0, 0, atkTex:GetWidth(), atkTex:GetHeight()))
+        atkImg.color = Color(1.0, 1.0, 1.0, 0.9)
+    end
 
     SubscribeToEvent(self.btnAttack, "Pressed", "HandleUIAttackPressed")
     SubscribeToEvent(self.btnAttack, "Released", "HandleUIAttackReleased")

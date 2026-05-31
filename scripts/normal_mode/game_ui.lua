@@ -120,7 +120,7 @@ function GameUI:_createMoveButtons()
     base:SetSize(joystickSize, joystickSize)
     base:SetPosition(0, 0)
     base.blendMode = BLEND_ALPHA
-    local baseTex = cache:GetResource("Texture2D", "image/UI/摇杆.png")
+    local baseTex = cache:GetResource("Texture2D", "image/UI/joystick_base.png")
     if baseTex then
         base:SetTexture(baseTex)
         base:SetFullImageRect()
@@ -166,7 +166,7 @@ function GameUI:_createJumpButton()
     jumpIcon:SetSize(btnSize, btnSize)
     jumpIcon:SetPosition(0, 0)
     jumpIcon.blendMode = BLEND_ALPHA
-    local jumpTex = cache:GetResource("Texture2D", "image/UI/跳跃.png")
+    local jumpTex = cache:GetResource("Texture2D", "image/UI/btn_jump.png")
     if jumpTex then
         jumpIcon:SetTexture(jumpTex)
         jumpIcon:SetFullImageRect()
@@ -202,7 +202,7 @@ function GameUI:_createAttackButton()
     attackIcon:SetSize(btnSize, btnSize)
     attackIcon:SetPosition(0, 0)
     attackIcon.blendMode = BLEND_ALPHA
-    local attackTex = cache:GetResource("Texture2D", "image/UI/攻击.png")
+    local attackTex = cache:GetResource("Texture2D", "image/UI/btn_attack.png")
     if attackTex then
         attackIcon:SetTexture(attackTex)
         attackIcon:SetFullImageRect()

@@ -24,59 +24,57 @@ function MenuOverlay:_create()
     self.panel = UIElement:new()
     uiRoot:AddChild(self.panel)
     self.panel:SetSize(graphics.width, graphics.height)
-    self.panel:SetAlignment(HA_CENTER, VA_CENTER)
+    self.panel:SetAlignment(HA_LEFT, VA_TOP)
+    self.panel:SetPosition(0, 0)
     self.panel:SetPriority(1000)
 
-    -- 纯白不透明背景
+    -- 全屏背景图片 (BorderImage 直接拉伸填满屏幕)
     local bg = BorderImage:new()
     self.panel:AddChild(bg)
     bg:SetSize(graphics.width, graphics.height)
     bg:SetPosition(0, 0)
-    bg.color = Color(1.0, 1.0, 1.0, 1.0)
+    local bgTex = cache:GetResource("Texture2D", "image/UI/start_bg.png")
+    if bgTex then
+        bg:SetTexture(bgTex)
+        local texW = bgTex:GetWidth()
+        local texH = bgTex:GetHeight()
+        bg:SetImageRect(IntRect(0, 0, texW, texH))
+        bg.color = Color(1.0, 1.0, 1.0, 1.0)
+        log:Write(LOG_INFO, "[MenuOverlay] BG loaded: " .. texW .. "x" .. texH .. " -> fullscreen " .. graphics.width .. "x" .. graphics.height)
+    else
+        bg.color = Color(0.0, 0.0, 0.0, 1.0)
+        log:Write(LOG_WARNING, "[MenuOverlay] BG texture not found, fallback black")
+    end
 
-    -- ========== 标题层 ==========
+    -- ========== 标题层（透明热区覆盖图片中的按钮位置） ==========
     self.titleLayer = UIElement:new()
     self.panel:AddChild(self.titleLayer)
     self.titleLayer:SetSize(graphics.width, graphics.height)
     self.titleLayer:SetPosition(0, 0)
 
-    -- 游戏标题
-    local title = Text:new()
-    self.titleLayer:AddChild(title)
-    title:SetStyleAuto()
-    title.text = "54321"
-    title:SetFontSize(52)
-    title:SetAlignment(HA_CENTER, VA_CENTER)
-    title:SetPosition(0, -80)
-    title.color = Color(0.1, 0.1, 0.2, 1.0)
-
-    -- 副标题
-    local subtitle = Text:new()
-    self.titleLayer:AddChild(subtitle)
-    subtitle:SetStyleAuto()
-    subtitle.text = "五感剥夺 · 动作卡牌"
-    subtitle:SetFontSize(16)
-    subtitle:SetAlignment(HA_CENTER, VA_CENTER)
-    subtitle:SetPosition(0, -40)
-    subtitle.color = Color(0.4, 0.4, 0.5, 1.0)
-
-    -- START 按钮
+    -- 图片中"开始旅途"按钮的透明热区（位置基于1935x1080原图比例换算）
+    -- 按钮大约在画面中下偏左: x~30%, y~75%, 宽~20%, 高~8%
+    local sw = graphics.width
+    local sh = graphics.height
     local btnStart = Button:new()
     self.titleLayer:AddChild(btnStart)
-    btnStart:SetStyleAuto()
-    btnStart:SetSize(200, 60)
-    btnStart:SetAlignment(HA_CENTER, VA_CENTER)
-    btnStart:SetPosition(0, 40)
-    btnStart:SetOpacity(0.9)
-
-    local startText = Text:new()
-    btnStart:AddChild(startText)
-    startText:SetStyleAuto()
-    startText.text = "START"
-    startText:SetFontSize(28)
-    startText:SetAlignment(HA_CENTER, VA_CENTER)
+    btnStart:SetSize(math.floor(sw * 0.22), math.floor(sh * 0.09))
+    btnStart:SetAlignment(HA_LEFT, VA_TOP)
+    btnStart:SetPosition(math.floor(sw * 0.28), math.floor(sh * 0.72))
+    btnStart.color = Color(0, 0, 0, 0)  -- 完全透明，无边框
 
     SubscribeToEvent(btnStart, "Released", "HandleMenuShowSelect")
+
+    -- 图片中"退出游戏"按钮的透明热区
+    -- 按钮大约在画面右下: x~70%, y~75%, 宽~20%, 高~8%
+    local btnExit = Button:new()
+    self.titleLayer:AddChild(btnExit)
+    btnExit:SetSize(math.floor(sw * 0.22), math.floor(sh * 0.09))
+    btnExit:SetAlignment(HA_LEFT, VA_TOP)
+    btnExit:SetPosition(math.floor(sw * 0.68), math.floor(sh * 0.72))
+    btnExit.color = Color(0, 0, 0, 0)  -- 完全透明，无边框
+
+    SubscribeToEvent(btnExit, "Released", "HandleMenuExit")
 
     self.titleLayer.visible = true
 
