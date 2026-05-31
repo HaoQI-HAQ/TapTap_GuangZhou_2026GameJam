@@ -1,16 +1,37 @@
 -- 2D横板平台游戏 - 主入口
 require "LuaScripts/Utilities/Sample"
 require "scripts/input_manager"
-require "scripts/player"
-require "scripts/ground"
-require "scripts/game_ui"
-require "scripts/enemy"
 require "scripts/menu_overlay"
-require "scripts/card_system"
-require "scripts/card_ui"
-require "scripts/card_skills"
-require "scripts/senses_system"
 require "scripts/loading_scene"
+
+-- 当前游戏模式："test_room" 或 "normal_mode"
+local currentMode = nil
+
+--- 按模式加载对应目录的游戏脚本（清除缓存后重新加载，覆盖全局类）
+local function LoadModeScripts(mode)
+    local prefix = "scripts/" .. mode .. "/"
+    local modules = {
+        prefix .. "player",
+        prefix .. "enemy",
+        prefix .. "ground",
+        prefix .. "game_ui",
+        prefix .. "card_system",
+        prefix .. "card_ui",
+        prefix .. "card_skills",
+        prefix .. "card_data",
+        prefix .. "senses_system",
+    }
+    -- 清除缓存确保重新加载
+    for _, m in ipairs(modules) do
+        package.loaded[m] = nil
+    end
+    -- 加载模块（覆盖全局 Player/Enemy/Ground 等）
+    for _, m in ipairs(modules) do
+        require(m)
+    end
+    currentMode = mode
+    log:Write(LOG_INFO, "[Game] Loaded mode scripts: " .. mode)
+end
 
 local scene_ = nil
 local cameraNode = nil
@@ -30,6 +51,10 @@ local sensesSystem = nil
 local loadingScene = nil
 local gameReady = false
 
+-- 暂停状态
+local gamePaused = false
+local pausePanel = nil
+
 function Start()
     SampleStart()
 
@@ -42,15 +67,36 @@ function Start()
     log:Write(LOG_INFO, "[Game] Loading started")
 end
 
---- 预加载完成后，初始化游戏场景和所有系统
+--- 预加载完成后，初始化基础设施（场景、相机、菜单），等待玩家选择模式
 function OnLoadingComplete()
     loadingScene = nil
     gameReady = true
 
     CreateScene()
+    SetupCamera()
 
     -- 创建输入管理器
     inputManager = InputManager:new()
+
+    -- 创建菜单覆盖层（默认显示，挡住游戏画面）
+    menuOverlay = MenuOverlay:new()
+
+    -- Game Over UI（默认隐藏）
+    _createGameOverUI()
+
+    -- 暂停UI（默认隐藏）
+    _createPauseUI()
+
+    -- 初始状态：菜单显示，物理暂停
+    physicsWorld_.enabled = false
+
+    log:Write(LOG_INFO, "[Game] Base systems initialized, waiting for mode selection")
+end
+
+--- 初始化游戏对象（根据已加载的模式脚本创建关卡内容）
+function InitGameObjects()
+    -- 清空旧敌人列表
+    enemies = {}
 
     -- === 关卡一 ===
     -- 主地面（100米宽）
@@ -60,9 +106,6 @@ function OnLoadingComplete()
 
     -- 创建玩家
     player = Player:new(scene_, inputManager)
-
-    -- 设置相机
-    SetupCamera()
 
     -- 关卡一敌人配置
     local levelEnemies = {
@@ -127,17 +170,7 @@ function OnLoadingComplete()
         ShowGameOver()
     end
 
-    -- 创建菜单覆盖层（默认显示，挡住游戏画面）
-    menuOverlay = MenuOverlay:new()
-    
-    -- Game Over UI（默认隐藏）
-    _createGameOverUI()
-
-    -- 初始状态：菜单显示，物理暂停，卡牌隐藏
-    cardUI:hide()
-    physicsWorld_.enabled = false
-
-    log:Write(LOG_INFO, "[Game] All systems initialized, ready to play")
+    log:Write(LOG_INFO, "[Game] Game objects initialized for mode: " .. (currentMode or "unknown"))
 end
 
 function CreateScene()
@@ -168,27 +201,37 @@ function SetupCamera()
     renderer.defaultZone.fogColor = Color(0.6, 0.8, 1.0, 1.0)
 end
 
---- 从菜单进入游戏：重置所有状态，显示游戏UI
-function EnterGame()
-    player:reset()
-    sensesSystem:reset()
-    for _, e in ipairs(enemies) do
-        e:reset()
-        e:showHpBar()
-    end
+--- 从菜单进入游戏：加载模式脚本、重建场景、初始化对象
+function EnterGame(mode)
+    -- 加载对应模式的脚本
+    LoadModeScripts(mode)
+
+    -- 重建场景（彻底清除旧游戏对象）
+    CreateScene()
+    SetupCamera()
+
+    -- 初始化游戏对象
+    InitGameObjects()
+
+    -- 启动游戏
     cameraNode.position = Vector3(0, -1.9, -10)
     physicsWorld_.enabled = true
+    scene_.updateEnabled = true
+    gamePaused = false
+    if pausePanel then pausePanel.visible = false end
     gameUI:show()
     gameUI:resetCountdown()
     cardSystem:reset()
     cardSkills:reset()
     cardUI:show()
-    log:Write(LOG_INFO, "[Game] Enter game scene")
+    log:Write(LOG_INFO, "[Game] Enter game - mode: " .. mode)
 end
 
 --- 从游戏回到菜单：隐藏游戏UI，暂停物理
 function ReturnToMenu()
     physicsWorld_.enabled = false
+    gamePaused = false
+    if pausePanel then pausePanel.visible = false end
     gameUI:hide()
     cardUI:hide()
     for _, e in ipairs(enemies) do
@@ -198,10 +241,38 @@ function ReturnToMenu()
     log:Write(LOG_INFO, "[Game] Return to menu")
 end
 
--- 菜单按钮回调：开始游戏
-function HandleMenuStart(eventType, eventData)
+-- 菜单按钮回调：START → 显示模式选择
+function HandleMenuShowSelect(eventType, eventData)
+    menuOverlay:showSelect()
+end
+
+-- 模式选择：测试房间（加载 test_room 目录脚本）
+function HandleModeTest(eventType, eventData)
     menuOverlay:hide()
-    EnterGame()
+    EnterGame("test_room")
+end
+
+-- 模式选择：普通模式（加载 normal_mode 目录脚本）
+function HandleModeNormal(eventType, eventData)
+    menuOverlay:hide()
+    EnterGame("normal_mode")
+end
+
+-- 模式选择：无尽模式（未开发提示）
+function HandleModeEndless(eventType, eventData)
+    menuOverlay:hide()
+    ShowComingSoon()
+    log:Write(LOG_INFO, "[Game] Mode: Endless (coming soon)")
+end
+
+-- 模式选择：返回标题页
+function HandleModeBack(eventType, eventData)
+    menuOverlay:showTitle()
+end
+
+-- 旧接口保留兼容
+function HandleMenuStart(eventType, eventData)
+    menuOverlay:showSelect()
 end
 
 -- 菜单按钮回调：退出游戏
@@ -223,6 +294,65 @@ function HandleTestBossSkill(eventType, eventData)
             break
         end
     end
+end
+
+-- 无尽模式：未开发提示
+local comingSoonPanel = nil
+
+function ShowComingSoon()
+    if comingSoonPanel then
+        comingSoonPanel.visible = true
+        return
+    end
+
+    local uiRoot = ui.root
+
+    comingSoonPanel = UIElement:new()
+    uiRoot:AddChild(comingSoonPanel)
+    comingSoonPanel:SetSize(graphics.width, graphics.height)
+    comingSoonPanel:SetAlignment(HA_CENTER, VA_CENTER)
+    comingSoonPanel:SetPriority(1100)
+
+    -- 背景遮罩
+    local bg = BorderImage:new()
+    comingSoonPanel:AddChild(bg)
+    bg:SetSize(graphics.width, graphics.height)
+    bg:SetPosition(0, 0)
+    bg.color = Color(0.95, 0.95, 0.98, 1.0)
+
+    -- 提示文字
+    local msg = Text:new()
+    comingSoonPanel:AddChild(msg)
+    msg:SetStyleAuto()
+    msg.text = "未开发请敬请期待"
+    msg:SetFontSize(28)
+    msg:SetAlignment(HA_CENTER, VA_CENTER)
+    msg:SetPosition(0, -30)
+    msg.color = Color(0.3, 0.3, 0.4, 1.0)
+
+    -- 返回按钮
+    local btnBack = Button:new()
+    comingSoonPanel:AddChild(btnBack)
+    btnBack:SetStyleAuto()
+    btnBack:SetSize(160, 50)
+    btnBack:SetAlignment(HA_CENTER, VA_CENTER)
+    btnBack:SetPosition(0, 40)
+
+    local backText = Text:new()
+    btnBack:AddChild(backText)
+    backText:SetStyleAuto()
+    backText.text = "返回"
+    backText:SetFontSize(22)
+    backText:SetAlignment(HA_CENTER, VA_CENTER)
+
+    SubscribeToEvent(btnBack, "Released", "HandleComingSoonBack")
+end
+
+function HandleComingSoonBack(eventType, eventData)
+    if comingSoonPanel then
+        comingSoonPanel.visible = false
+    end
+    menuOverlay:show()
 end
 
 -- UI按钮回调
@@ -297,6 +427,32 @@ function HandleUpdate(eventType, eventData)
         return
     end
 
+    -- Tab键 或 手机返回键(Escape) 触发暂停/恢复
+    if input:GetKeyPress(KEY_TAB) or input:GetKeyPress(KEY_ESCAPE) then
+        if not gamePaused then
+            -- 进入暂停：冻结场景（物理+动画全部停止）
+            gamePaused = true
+            scene_.updateEnabled = false
+            if pausePanel then pausePanel.visible = true end
+            log:Write(LOG_INFO, "[Game] Paused")
+        else
+            -- 恢复游戏：恢复场景更新
+            gamePaused = false
+            scene_.updateEnabled = true
+            if pausePanel then pausePanel.visible = false end
+            log:Write(LOG_INFO, "[Game] Resumed")
+        end
+        return
+    end
+
+    -- 暂停时不更新游戏逻辑
+    if gamePaused then
+        return
+    end
+
+    -- 游戏对象未初始化时不更新
+    if not player then return end
+
     -- 更新输入
     inputManager:update()
 
@@ -326,6 +482,88 @@ function HandleUpdate(eventType, eventData)
     local newX = camPos.x + (targetPos.x - camPos.x) * lerpSpeed * dt
     local newY = camPos.y + (targetPos.y - camPos.y) * lerpSpeed * dt
     cameraNode.position = Vector3(newX, newY, -10)
+end
+
+-- 暂停UI
+function _createPauseUI()
+    local uiRoot = ui.root
+
+    -- 暂停面板（半透明遮罩 + Back/Leave 按钮）
+    pausePanel = UIElement:new()
+    uiRoot:AddChild(pausePanel)
+    pausePanel:SetSize(graphics.width, graphics.height)
+    pausePanel:SetAlignment(HA_CENTER, VA_CENTER)
+    pausePanel.priority = 1000
+
+    -- 半透明黑色背景
+    local bg = BorderImage:new()
+    pausePanel:AddChild(bg)
+    bg:SetSize(graphics.width, graphics.height)
+    bg:SetPosition(0, 0)
+    bg.color = Color(0, 0, 0, 0.7)
+
+    -- "PAUSED" 标题
+    local title = Text:new()
+    pausePanel:AddChild(title)
+    title:SetStyleAuto()
+    title.text = "PAUSED"
+    title:SetFontSize(36)
+    title:SetAlignment(HA_CENTER, VA_CENTER)
+    title:SetPosition(0, -60)
+    title.color = Color(1.0, 1.0, 1.0, 1.0)
+
+    -- Back 按钮（返回游戏）
+    local btnBack = Button:new()
+    pausePanel:AddChild(btnBack)
+    btnBack:SetStyleAuto()
+    btnBack:SetSize(180, 55)
+    btnBack:SetAlignment(HA_CENTER, VA_CENTER)
+    btnBack:SetPosition(0, 10)
+
+    local backText = Text:new()
+    btnBack:AddChild(backText)
+    backText:SetStyleAuto()
+    backText.text = "Back"
+    backText:SetFontSize(24)
+    backText:SetAlignment(HA_CENTER, VA_CENTER)
+
+    SubscribeToEvent(btnBack, "Released", "HandlePauseBack")
+
+    -- Leave 按钮（返回标题页）
+    local btnLeave = Button:new()
+    pausePanel:AddChild(btnLeave)
+    btnLeave:SetStyleAuto()
+    btnLeave:SetSize(180, 55)
+    btnLeave:SetAlignment(HA_CENTER, VA_CENTER)
+    btnLeave:SetPosition(0, 80)
+
+    local leaveText = Text:new()
+    btnLeave:AddChild(leaveText)
+    leaveText:SetStyleAuto()
+    leaveText.text = "Leave"
+    leaveText:SetFontSize(24)
+    leaveText:SetAlignment(HA_CENTER, VA_CENTER)
+
+    SubscribeToEvent(btnLeave, "Released", "HandlePauseLeave")
+
+    pausePanel.visible = false
+end
+
+-- 暂停菜单：Back（返回游戏）
+function HandlePauseBack(eventType, eventData)
+    gamePaused = false
+    scene_.updateEnabled = true
+    if pausePanel then pausePanel.visible = false end
+    log:Write(LOG_INFO, "[Game] Resumed")
+end
+
+-- 暂停菜单：Leave（返回标题页）
+function HandlePauseLeave(eventType, eventData)
+    gamePaused = false
+    scene_.updateEnabled = true
+    if pausePanel then pausePanel.visible = false end
+    ReturnToMenu()
+    log:Write(LOG_INFO, "[Game] Leave to title")
 end
 
 -- Game Over UI
@@ -390,6 +628,8 @@ function ShowGameOver()
         gameOverContainer.visible = true
     end
     physicsWorld_.enabled = false
+    gamePaused = false
+    if pausePanel then pausePanel.visible = false end
     gameUI:hide()
     cardUI:hide()
     for _, e in ipairs(enemies) do
@@ -402,7 +642,7 @@ function HandleRestart(eventType, eventData)
     if gameOverContainer then
         gameOverContainer.visible = false
     end
-    EnterGame()
+    EnterGame(currentMode or "test_room")
 end
 
 function Stop()
