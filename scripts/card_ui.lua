@@ -1,10 +1,11 @@
 -- 卡牌UI模块 - 右下角5张手牌（在平A按钮上方）
 local CardData = require("scripts/card_data")
+local ScreenUtils = require("scripts/screen_utils")
 
 CardUI = {}
 CardUI.__index = CardUI
 
--- UI 尺寸常量
+-- UI 尺寸常量（运行时缩放）
 local CARD_WIDTH = 73
 local CARD_HEIGHT = 101
 local CARD_SPACING = 4
@@ -29,15 +30,21 @@ function CardUI:new(cardSystem)
 end
 
 function CardUI:_setup()
+    local S = ScreenUtils.s
     local uiRoot = ui.root
 
+    -- 缓存缩放后的尺寸
+    self._cw = S(CARD_WIDTH)
+    self._ch = S(CARD_HEIGHT)
+    self._cs = S(CARD_SPACING)
+
     -- 卡牌容器（右下角，在攻击按钮上方）
-    local totalWidth = CARD_WIDTH * 5 + CARD_SPACING * 4
+    local totalWidth = self._cw * 5 + self._cs * 4
     self.container = UIElement:new()
     uiRoot:AddChild(self.container)
-    self.container:SetSize(totalWidth, CARD_HEIGHT)
+    self.container:SetSize(totalWidth, self._ch)
     self.container:SetAlignment(HA_RIGHT, VA_BOTTOM)
-    self.container:SetPosition(-CARD_RIGHT_MARGIN, -CARD_BOTTOM_OFFSET)
+    self.container:SetPosition(-S(CARD_RIGHT_MARGIN), -S(CARD_BOTTOM_OFFSET))
     self.container.priority = 100
 
     -- 创建5个卡牌槽位
@@ -51,29 +58,30 @@ function CardUI:_setup()
 end
 
 function CardUI:_createCardSlot(index)
-    local x = (index - 1) * (CARD_WIDTH + CARD_SPACING)
+    local cw, ch, cs = self._cw, self._ch, self._cs
+    local x = (index - 1) * (cw + cs)
 
     -- 卡牌按钮（清除默认灰色纹理样式）
     local btn = Button:new()
     self.container:AddChild(btn)
-    btn:SetStyle("none")  -- 不使用 DefaultStyle 灰色纹理
-    btn.color = Color(0, 0, 0, 0)  -- 按钮自身完全透明，不遮盖子元素
-    btn:SetSize(CARD_WIDTH, CARD_HEIGHT)
+    btn:SetStyle("none")
+    btn.color = Color(0, 0, 0, 0)
+    btn:SetSize(cw, ch)
     btn:SetPosition(x, 0)
     btn:SetOpacity(1.0)
 
     -- 卡牌图片（使用card文件夹下的图片）
     local cardImage = BorderImage:new()
     btn:AddChild(cardImage)
-    cardImage:SetSize(CARD_WIDTH, CARD_HEIGHT)
+    cardImage:SetSize(cw, ch)
     cardImage:SetPosition(0, 0)
     cardImage.color = Color(1.0, 1.0, 1.0, 1.0)
 
     -- 属性颜色条（底部薄条，标示元素）
     local elementBar = BorderImage:new()
     btn:AddChild(elementBar)
-    elementBar:SetSize(CARD_WIDTH, 4)
-    elementBar:SetPosition(0, CARD_HEIGHT - 4)
+    elementBar:SetSize(cw, ScreenUtils.s(4))
+    elementBar:SetPosition(0, ch - ScreenUtils.s(4))
     elementBar.color = Color(0.5, 0.5, 0.5, 1.0)
 
     -- 订阅按钮点击事件
@@ -91,6 +99,8 @@ end
 
 --- 刷新卡牌显示（可见卡牌往右靠拢，UI槽位按顺序复用）
 function CardUI:_refreshCards(hand)
+    local cw, ch, cs = self._cw, self._ch, self._cs
+
     -- 收集所有可见卡牌（保留原始hand索引用于useCard）
     local visibleCards = {}
     for i = 1, 5 do
@@ -104,9 +114,9 @@ function CardUI:_refreshCards(hand)
     end
 
     -- 计算靠右排列的起始X
-    local totalWidth = CARD_WIDTH * 5 + CARD_SPACING * 4
+    local totalWidth = cw * 5 + cs * 4
     local visibleCount = #visibleCards
-    local groupWidth = visibleCount * CARD_WIDTH + math.max(0, visibleCount - 1) * CARD_SPACING
+    local groupWidth = visibleCount * cw + math.max(0, visibleCount - 1) * cs
     local startX = totalWidth - groupWidth  -- 靠右对齐
 
     -- 先隐藏所有槽位并清空映射
@@ -121,7 +131,7 @@ function CardUI:_refreshCards(hand)
     -- 这样 HandleCardBtn1 对应视觉上第1张，HandleCardBtn2 对应第2张
     for idx, info in ipairs(visibleCards) do
         local slot = self.cardSlots[idx]  -- 用顺序idx，不用原始handIndex
-        local x = startX + (idx - 1) * (CARD_WIDTH + CARD_SPACING)
+        local x = startX + (idx - 1) * (cw + cs)
 
         slot.btn.visible = true
         slot.btn:SetPosition(x, 0)
@@ -154,6 +164,18 @@ function CardUI:_refreshCards(hand)
             slot.cardImage:SetOpacity(1.0)
         end
     end
+end
+
+--- 获取当前可见手牌数量
+---@return number
+function CardUI:getHandCount()
+    local count = 0
+    for _, slot in ipairs(self.cardSlots) do
+        if slot.active then
+            count = count + 1
+        end
+    end
+    return count
 end
 
 --- 获取 UI 槽位对应的真实 hand 索引

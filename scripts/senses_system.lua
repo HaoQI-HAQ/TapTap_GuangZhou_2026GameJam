@@ -84,10 +84,15 @@ end
 --- 当玩家受伤时调用（在 Player:takeDamage 之后）
 --- @return string|nil 返回被剥夺的感官名，或 nil（如果无可剥夺）
 function SensesSystem:onPlayerDamaged()
-    -- 如果所有随机感官已剥夺，则剥夺视觉（=死亡）
+    -- 随机池空了 → 按固定顺序剥夺：hearing(倒数第二) → vision(最后=死亡)
     if #self.randomPool == 0 then
-        self:_depriveSense(SensesSystem.VISION)
-        return SensesSystem.VISION
+        if not self.deprived[SensesSystem.HEARING] then
+            self:_depriveSense(SensesSystem.HEARING)
+            return SensesSystem.HEARING
+        else
+            self:_depriveSense(SensesSystem.VISION)
+            return SensesSystem.VISION
+        end
     end
 
     -- 随机选一个感官剥夺

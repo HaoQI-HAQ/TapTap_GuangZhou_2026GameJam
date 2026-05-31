@@ -102,6 +102,9 @@ local LEVELS = {
     },
 }
 
+-- 保存默认关卡数据的备份（用于 clearCustomLevels 恢复）
+local DEFAULT_LEVELS = LEVELS
+
 function LevelManager:new()
     ---@diagnostic disable-next-line: redefined-local
     local self = setmetatable({}, LevelManager)
@@ -399,6 +402,52 @@ end
 --- 重置关卡管理器（回到第一关）
 function LevelManager:reset()
     self.currentLevel = 1
+    self.portalNode = nil
+    self.portalActive = false
+    self.portalTimer = 0
+    self.playerInPortal = false
+    self.teleporting = false
+end
+
+--- 注入外部关卡数据（编辑器测试用）
+--- 将编辑器中编辑的关卡数据覆盖到内部 LEVELS 表
+---@param customLevels table 编辑器格式的关卡列表
+function LevelManager:setCustomLevels(customLevels)
+    if not customLevels or #customLevels == 0 then return end
+    -- 覆盖 LEVELS 表
+    LEVELS = {}
+    for i, src in ipairs(customLevels) do
+        local level = {
+            name = src.name or ("第" .. i .. "关"),
+            groundWidth = src.groundWidth or 100.0,
+            platforms = src.platforms or {},
+            portalX = src.portalX,
+            portalY = src.portalY or -2.0,
+        }
+        -- 编辑器格式的 enemies 是固定表（非 "random" 字符串）
+        if type(src.enemies) == "table" then
+            level.enemies = src.enemies
+        else
+            level.enemies = {}
+        end
+        LEVELS[i] = level
+    end
+    self.maxLevel = #LEVELS
+    log:Write(LOG_INFO, "[LevelManager] Custom levels injected: " .. #LEVELS .. " levels")
+end
+
+--- 清除自定义关卡数据，恢复到硬编码默认值
+function LevelManager:clearCustomLevels()
+    LEVELS = DEFAULT_LEVELS
+    self.maxLevel = #LEVELS
+    log:Write(LOG_INFO, "[LevelManager] Restored default levels: " .. #LEVELS .. " levels")
+end
+
+--- 设置当前关卡（用于编辑器测试跳转）
+function LevelManager:setLevel(level)
+    if level >= 1 and level <= self.maxLevel then
+        self.currentLevel = level
+    end
     self.portalNode = nil
     self.portalActive = false
     self.portalTimer = 0

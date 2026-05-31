@@ -1,5 +1,7 @@
 -- MenuOverlay 游戏开始界面（全屏UI覆盖层）
 -- 两层菜单：标题页(START) → 模式选择页(测试房间/普通模式/无尽模式/返回)
+local ScreenUtils = require("scripts/screen_utils")
+
 MenuOverlay = {}
 MenuOverlay.__index = MenuOverlay
 
@@ -20,10 +22,14 @@ function MenuOverlay:_create()
     local uiStyle = cache:GetResource("XMLFile", "UI/DefaultStyle.xml")
     uiRoot.defaultStyle = uiStyle
 
+    local S = ScreenUtils.s
+    local sw = ScreenUtils.width()
+    local sh = ScreenUtils.height()
+
     -- 全屏遮罩面板
     self.panel = UIElement:new()
     uiRoot:AddChild(self.panel)
-    self.panel:SetSize(graphics.width, graphics.height)
+    self.panel:SetSize(sw, sh)
     self.panel:SetAlignment(HA_LEFT, VA_TOP)
     self.panel:SetPosition(0, 0)
     self.panel:SetPriority(1000)
@@ -31,7 +37,7 @@ function MenuOverlay:_create()
     -- 全屏背景图片 (BorderImage 直接拉伸填满屏幕)
     local bg = BorderImage:new()
     self.panel:AddChild(bg)
-    bg:SetSize(graphics.width, graphics.height)
+    bg:SetSize(sw, sh)
     bg:SetPosition(0, 0)
     local bgTex = cache:GetResource("Texture2D", "image/UI/start_bg.png")
     if bgTex then
@@ -40,7 +46,7 @@ function MenuOverlay:_create()
         local texH = bgTex:GetHeight()
         bg:SetImageRect(IntRect(0, 0, texW, texH))
         bg.color = Color(1.0, 1.0, 1.0, 1.0)
-        log:Write(LOG_INFO, "[MenuOverlay] BG loaded: " .. texW .. "x" .. texH .. " -> fullscreen " .. graphics.width .. "x" .. graphics.height)
+        log:Write(LOG_INFO, "[MenuOverlay] BG loaded: " .. texW .. "x" .. texH .. " -> fullscreen " .. sw .. "x" .. sh)
     else
         bg.color = Color(0.0, 0.0, 0.0, 1.0)
         log:Write(LOG_WARNING, "[MenuOverlay] BG texture not found, fallback black")
@@ -49,15 +55,13 @@ function MenuOverlay:_create()
     -- ========== 标题层（底部居中按钮） ==========
     self.titleLayer = UIElement:new()
     self.panel:AddChild(self.titleLayer)
-    self.titleLayer:SetSize(graphics.width, graphics.height)
+    self.titleLayer:SetSize(sw, sh)
     self.titleLayer:SetPosition(0, 0)
 
     -- 底部按钮容器（水平排列两个按钮）
-    local sw = graphics.width
-    local sh = graphics.height
-    local btnW = 180
-    local btnH = 50
-    local gap = 40  -- 两按钮间距
+    local btnW = S(180)
+    local btnH = S(50)
+    local gap = S(40)  -- 两按钮间距
 
     -- "开始旅途"按钮
     local btnStart = Button:new()
@@ -65,14 +69,14 @@ function MenuOverlay:_create()
     btnStart:SetStyleAuto()
     btnStart:SetSize(btnW, btnH)
     btnStart:SetAlignment(HA_CENTER, VA_BOTTOM)
-    btnStart:SetPosition(-math.floor((btnW + gap) / 2), -40)
+    btnStart:SetPosition(-math.floor((btnW + gap) / 2), S(-40))
     btnStart:SetOpacity(0.85)
 
     local startText = Text:new()
     btnStart:AddChild(startText)
     startText:SetStyleAuto()
     startText.text = "开始旅途"
-    startText:SetFontSize(22)
+    startText:SetFontSize(S(22))
     startText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnStart, "Released", "HandleMenuShowSelect")
@@ -83,14 +87,14 @@ function MenuOverlay:_create()
     btnExit:SetStyleAuto()
     btnExit:SetSize(btnW, btnH)
     btnExit:SetAlignment(HA_CENTER, VA_BOTTOM)
-    btnExit:SetPosition(math.floor((btnW + gap) / 2), -40)
+    btnExit:SetPosition(math.floor((btnW + gap) / 2), S(-40))
     btnExit:SetOpacity(0.85)
 
     local exitText = Text:new()
     btnExit:AddChild(exitText)
     exitText:SetStyleAuto()
     exitText.text = "退出游戏"
-    exitText:SetFontSize(22)
+    exitText:SetFontSize(S(22))
     exitText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnExit, "Released", "HandleMenuExit")
@@ -100,24 +104,22 @@ function MenuOverlay:_create()
     -- ========== 模式选择层 ==========
     self.selectLayer = UIElement:new()
     self.panel:AddChild(self.selectLayer)
-    self.selectLayer:SetSize(graphics.width, graphics.height)
+    self.selectLayer:SetSize(sw, sh)
     self.selectLayer:SetPosition(0, 0)
-
-    -- 选择模式标题（已移除）
 
     -- 测试房间
     local btnTest = Button:new()
     self.selectLayer:AddChild(btnTest)
     btnTest:SetStyleAuto()
-    btnTest:SetSize(220, 50)
+    btnTest:SetSize(S(220), S(50))
     btnTest:SetAlignment(HA_CENTER, VA_CENTER)
-    btnTest:SetPosition(0, -50)
+    btnTest:SetPosition(0, S(-50))
 
     local testText = Text:new()
     btnTest:AddChild(testText)
     testText:SetStyleAuto()
     testText.text = "测试房间"
-    testText:SetFontSize(22)
+    testText:SetFontSize(S(22))
     testText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnTest, "Released", "HandleModeTest")
@@ -126,15 +128,15 @@ function MenuOverlay:_create()
     local btnNormal = Button:new()
     self.selectLayer:AddChild(btnNormal)
     btnNormal:SetStyleAuto()
-    btnNormal:SetSize(220, 50)
+    btnNormal:SetSize(S(220), S(50))
     btnNormal:SetAlignment(HA_CENTER, VA_CENTER)
-    btnNormal:SetPosition(0, 10)
+    btnNormal:SetPosition(0, S(10))
 
     local normalText = Text:new()
     btnNormal:AddChild(normalText)
     normalText:SetStyleAuto()
     normalText.text = "普通模式"
-    normalText:SetFontSize(22)
+    normalText:SetFontSize(S(22))
     normalText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnNormal, "Released", "HandleModeNormal")
@@ -143,15 +145,15 @@ function MenuOverlay:_create()
     local btnEndless = Button:new()
     self.selectLayer:AddChild(btnEndless)
     btnEndless:SetStyleAuto()
-    btnEndless:SetSize(220, 50)
+    btnEndless:SetSize(S(220), S(50))
     btnEndless:SetAlignment(HA_CENTER, VA_CENTER)
-    btnEndless:SetPosition(0, 70)
+    btnEndless:SetPosition(0, S(70))
 
     local endlessText = Text:new()
     btnEndless:AddChild(endlessText)
     endlessText:SetStyleAuto()
     endlessText.text = "无尽模式"
-    endlessText:SetFontSize(22)
+    endlessText:SetFontSize(S(22))
     endlessText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnEndless, "Released", "HandleModeEndless")
@@ -160,15 +162,15 @@ function MenuOverlay:_create()
     local btnBack = Button:new()
     self.selectLayer:AddChild(btnBack)
     btnBack:SetStyleAuto()
-    btnBack:SetSize(220, 50)
+    btnBack:SetSize(S(220), S(50))
     btnBack:SetAlignment(HA_CENTER, VA_CENTER)
-    btnBack:SetPosition(0, 130)
+    btnBack:SetPosition(0, S(130))
 
     local backText = Text:new()
     btnBack:AddChild(backText)
     backText:SetStyleAuto()
     backText.text = "返回"
-    backText:SetFontSize(22)
+    backText:SetFontSize(S(22))
     backText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnBack, "Released", "HandleModeBack")

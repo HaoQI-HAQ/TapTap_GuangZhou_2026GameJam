@@ -1,4 +1,6 @@
 -- GameUI 类
+local ScreenUtils = require("scripts/screen_utils")
+
 GameUI = {}
 GameUI.__index = GameUI
 
@@ -23,6 +25,9 @@ function GameUI:_setup()
     local uiStyle = cache:GetResource("XMLFile", "UI/DefaultStyle.xml")
     uiRoot.defaultStyle = uiStyle
 
+    -- 缓存缩放函数
+    self._S = ScreenUtils.s
+
     self:_createHpUI()
     self:_createCountdownUI()
     self:_createMoveButtons()
@@ -40,13 +45,14 @@ end
 
 -- 左上角血量显示
 function GameUI:_createHpUI()
+    local S = self._S
     local uiRoot = ui.root
 
     self.hpContainer = UIElement:new()
     uiRoot:AddChild(self.hpContainer)
     self.hpContainer:SetAlignment(HA_LEFT, VA_TOP)
-    self.hpContainer:SetPosition(20, 20)
-    self.hpContainer:SetSize(300, 50)
+    self.hpContainer:SetPosition(S(20), S(20))
+    self.hpContainer:SetSize(S(300), S(50))
     table.insert(self.elements, self.hpContainer)
 
     for i = 1, self.player:getMaxHp() do
@@ -54,23 +60,24 @@ function GameUI:_createHpUI()
         self.hpContainer:AddChild(hpIcon)
         hpIcon:SetStyleAuto()
         hpIcon.text = "♥"
-        hpIcon:SetFontSize(28)
+        hpIcon:SetFontSize(S(28))
         hpIcon.color = Color(1.0, 0.2, 0.2, 1.0)
-        hpIcon:SetPosition((i - 1) * 40, 5)
+        hpIcon:SetPosition((i - 1) * S(40), S(5))
         self.hpIcons[i] = hpIcon
     end
 end
 
 -- 中上位置倒计时UI（使用齿轮图片）
 function GameUI:_createCountdownUI()
+    local S = self._S
     local uiRoot = ui.root
 
-    local imgSize = 64
+    local imgSize = S(64)
     local container = UIElement:new()
     uiRoot:AddChild(container)
     container:SetAlignment(HA_CENTER, VA_TOP)
     container:SetSize(imgSize, imgSize)
-    container:SetPosition(0, 10)
+    container:SetPosition(0, S(10))
     table.insert(self.elements, container)
 
     -- 预加载5张倒计时图片
@@ -99,18 +106,19 @@ end
 
 -- 左下角摇杆（使用图片素材）
 function GameUI:_createMoveButtons()
+    local S = self._S
     local uiRoot = ui.root
 
-    local joystickSize = 120
-    local thumbSize = 50
-    local deadZone = 10  -- 死区像素
+    local joystickSize = S(120)
+    local thumbSize = S(50)
+    local deadZone = S(10)  -- 死区像素
 
     -- 摇杆底座容器
     local container = UIElement:new()
     uiRoot:AddChild(container)
     container:SetAlignment(HA_LEFT, VA_BOTTOM)
     container:SetSize(joystickSize, joystickSize)
-    container:SetPosition(20, -20)
+    container:SetPosition(S(20), S(-20))
     table.insert(self.elements, container)
 
     -- 底座背景（使用摇杆图片）
@@ -148,15 +156,16 @@ end
 
 -- 右下角跳跃按钮（使用图片素材）
 function GameUI:_createJumpButton()
+    local S = self._S
     local uiRoot = ui.root
 
-    local btnSize = 70
+    local btnSize = S(70)
 
     local jumpContainer = UIElement:new()
     uiRoot:AddChild(jumpContainer)
     jumpContainer:SetAlignment(HA_RIGHT, VA_BOTTOM)
     jumpContainer:SetSize(btnSize, btnSize)
-    jumpContainer:SetPosition(-20, -20)
+    jumpContainer:SetPosition(S(-20), S(-20))
     table.insert(self.elements, jumpContainer)
 
     -- 跳跃图标背景
@@ -184,15 +193,16 @@ end
 
 -- 右下角攻击按钮（跳跃按钮左侧，水平并排）
 function GameUI:_createAttackButton()
+    local S = self._S
     local uiRoot = ui.root
 
-    local btnSize = 70
+    local btnSize = S(70)
 
     local attackContainer = UIElement:new()
     uiRoot:AddChild(attackContainer)
     attackContainer:SetAlignment(HA_RIGHT, VA_BOTTOM)
     attackContainer:SetSize(btnSize, btnSize)
-    attackContainer:SetPosition(-100, -20)
+    attackContainer:SetPosition(S(-100), S(-20))
     table.insert(self.elements, attackContainer)
 
     -- 攻击图标背景
@@ -223,13 +233,14 @@ end
 
 -- 右上角五感状态图标（使用图片素材）
 function GameUI:_createSensesStatusUI()
+    local S = self._S
     local uiRoot = ui.root
 
     local container = UIElement:new()
     uiRoot:AddChild(container)
     container:SetAlignment(HA_RIGHT, VA_TOP)
-    container:SetSize(280, 50)
-    container:SetPosition(-10, 15)
+    container:SetSize(S(280), S(50))
+    container:SetPosition(S(-10), S(15))
     table.insert(self.elements, container)
 
     -- 五感定义：key, 正常图片路径, 异常图片路径
@@ -247,8 +258,8 @@ function GameUI:_createSensesStatusUI()
     for i, def in ipairs(sensesDef) do
         local icon = BorderImage:new()
         container:AddChild(icon)
-        icon:SetSize(44, 44)
-        icon:SetPosition((i - 1) * 52, 3)
+        icon:SetSize(S(44), S(44))
+        icon:SetPosition((i - 1) * S(52), S(3))
         -- 设置正常状态图片
         local normalTexture = cache:GetResource("Texture2D", def.normalTex)
         if normalTexture then
@@ -268,20 +279,21 @@ end
 
 -- 底部中间关卡指示器
 function GameUI:_createLevelIndicator()
+    local S = self._S
     local uiRoot = ui.root
 
     local container = UIElement:new()
     uiRoot:AddChild(container)
     container:SetAlignment(HA_CENTER, VA_BOTTOM)
-    container:SetSize(120, 30)
-    container:SetPosition(0, -20)
+    container:SetSize(S(120), S(30))
+    container:SetPosition(0, S(-20))
     table.insert(self.elements, container)
 
     self.levelText = Text:new()
     container:AddChild(self.levelText)
     self.levelText:SetStyleAuto()
     self.levelText.text = ""
-    self.levelText:SetFontSize(16)
+    self.levelText:SetFontSize(S(16))
     self.levelText:SetAlignment(HA_CENTER, VA_CENTER)
     self.levelText.color = Color(1.0, 1.0, 1.0, 0.9)
 end

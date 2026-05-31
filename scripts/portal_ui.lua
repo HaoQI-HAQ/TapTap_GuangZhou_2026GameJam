@@ -1,4 +1,6 @@
 -- 传送门读条UI：显示传送进度条和提示文字
+local ScreenUtils = require("scripts/screen_utils")
+
 local PortalUI = {}
 PortalUI.__index = PortalUI
 
@@ -16,16 +18,19 @@ function PortalUI:new()
 end
 
 function PortalUI:_create()
+    local S = ScreenUtils.s
     local uiRoot = ui.root
-    local w = uiRoot.width
-    local h = uiRoot.height
+
+    -- 缓存缩放尺寸
+    self._barW = S(260)
+    self._barH = S(16)
 
     -- 读条容器（屏幕中央偏下）
     self.container = UIElement:new()
     uiRoot:AddChild(self.container)
-    self.container:SetSize(300, 60)
+    self.container:SetSize(S(300), S(60))
     self.container:SetAlignment(HA_CENTER, VA_CENTER)
-    self.container:SetPosition(0, 80)
+    self.container:SetPosition(0, S(80))
     self.container.priority = 850
 
     -- 提示文字
@@ -33,7 +38,7 @@ function PortalUI:_create()
     self.container:AddChild(self.hintText)
     self.hintText:SetStyleAuto()
     self.hintText.text = "传送中..."
-    self.hintText:SetFontSize(18)
+    self.hintText:SetFontSize(S(18))
     self.hintText:SetAlignment(HA_CENTER, VA_TOP)
     self.hintText:SetPosition(0, 0)
     self.hintText.color = Color(0.9, 0.9, 1.0, 1.0)
@@ -41,17 +46,17 @@ function PortalUI:_create()
     -- 进度条背景
     self.barBg = BorderImage:new()
     self.container:AddChild(self.barBg)
-    self.barBg:SetSize(260, 20)
+    self.barBg:SetSize(S(260), S(20))
     self.barBg:SetAlignment(HA_CENTER, VA_TOP)
-    self.barBg:SetPosition(0, 28)
+    self.barBg:SetPosition(0, S(28))
     self.barBg.color = Color(0.1, 0.1, 0.2, 0.8)
 
     -- 进度条填充
     self.barFill = BorderImage:new()
     self.container:AddChild(self.barFill)
-    self.barFill:SetSize(0, 16)
+    self.barFill:SetSize(0, self._barH)
     self.barFill:SetAlignment(HA_LEFT, VA_TOP)
-    self.barFill:SetPosition(20, 30)  -- barBg起始 + 2px padding
+    self.barFill:SetPosition(S(20), S(30))
     self.barFill.color = Color(0.3, 0.7, 1.0, 1.0)
 
     -- 默认隐藏
@@ -62,9 +67,9 @@ function PortalUI:_create()
     uiRoot:AddChild(self.portalHint)
     self.portalHint:SetStyleAuto()
     self.portalHint.text = ">> 所有敌人已击败！前往右侧传送门进入下一关 >>"
-    self.portalHint:SetFontSize(16)
+    self.portalHint:SetFontSize(S(16))
     self.portalHint:SetAlignment(HA_CENTER, VA_TOP)
-    self.portalHint:SetPosition(0, 60)
+    self.portalHint:SetPosition(0, S(60))
     self.portalHint.color = Color(0.4, 0.8, 1.0, 1.0)
     self.portalHint.priority = 850
     self.portalHint.visible = false
@@ -104,16 +109,16 @@ function PortalUI:hideCharging()
     self.visible = false
     -- 重置进度条
     if self.barFill then
-        self.barFill:SetSize(0, 16)
+        self.barFill:SetSize(0, self._barH)
     end
 end
 
 --- 更新进度条（progress: 0~1）
 function PortalUI:setProgress(progress)
     if self.barFill then
-        local maxWidth = 256  -- 260 - 4px padding
+        local maxWidth = self._barW - ScreenUtils.s(4)  -- 减去padding
         local fillWidth = math.floor(maxWidth * progress)
-        self.barFill:SetSize(fillWidth, 16)
+        self.barFill:SetSize(fillWidth, self._barH)
 
         -- 颜色从蓝色渐变到白色
         local r = 0.3 + 0.7 * progress
@@ -142,7 +147,7 @@ function PortalUI:showGameComplete()
         self.portalHint.text = "★ 恭喜通关！所有关卡已完成 ★"
         self.portalHint.color = Color(1.0, 0.85, 0.0, 1.0)
         self.portalHint.visible = true
-        self.portalHint:SetFontSize(22)
+        self.portalHint:SetFontSize(ScreenUtils.s(22))
         self._portalActivated = true  -- 防止被自动隐藏
     end
     -- 隐藏读条容器
