@@ -103,15 +103,7 @@ function MenuOverlay:_create()
     self.selectLayer:SetSize(graphics.width, graphics.height)
     self.selectLayer:SetPosition(0, 0)
 
-    -- 选择模式标题
-    local selectTitle = Text:new()
-    self.selectLayer:AddChild(selectTitle)
-    selectTitle:SetStyleAuto()
-    selectTitle.text = "选择模式"
-    selectTitle:SetFontSize(32)
-    selectTitle:SetAlignment(HA_CENTER, VA_CENTER)
-    selectTitle:SetPosition(0, -120)
-    selectTitle.color = Color(0.1, 0.1, 0.2, 1.0)
+    -- 选择模式标题（已移除）
 
     -- 测试房间
     local btnTest = Button:new()
