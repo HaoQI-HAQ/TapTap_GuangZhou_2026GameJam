@@ -28,8 +28,7 @@ function GameUI:_setup()
     self:_createMoveButtons()
     self:_createJumpButton()
     self:_createAttackButton()
-    self:_createBackButton()
-    self:_createTestSkillButton()
+
     self:_createSensesStatusUI()
 
     -- 默认隐藏（等菜单点击START后再显示）
@@ -164,7 +163,7 @@ function GameUI:_createJumpButton()
     SubscribeToEvent(self.btnJump, "Released", "HandleUIJumpReleased")
 end
 
--- 右下角攻击按钮（跳跃按钮上方，使用图片）
+-- 右下角攻击按钮（跳跃按钮左侧，水平并排）
 function GameUI:_createAttackButton()
     local uiRoot = ui.root
 
@@ -173,7 +172,7 @@ function GameUI:_createAttackButton()
     uiRoot:AddChild(attackContainer)
     attackContainer:SetAlignment(HA_RIGHT, VA_BOTTOM)
     attackContainer:SetSize(btnSize, btnSize)
-    attackContainer:SetPosition(-20, -100)
+    attackContainer:SetPosition(-100, -20)
     table.insert(self.elements, attackContainer)
 
     self.btnAttack = Button:new()
@@ -197,58 +196,7 @@ function GameUI:_createAttackButton()
 end
 
 -- 右上角BACK按钮（五感图标下方）
-function GameUI:_createBackButton()
-    local uiRoot = ui.root
 
-    local backContainer = UIElement:new()
-    uiRoot:AddChild(backContainer)
-    backContainer:SetAlignment(HA_RIGHT, VA_TOP)
-    backContainer:SetSize(80, 40)
-    backContainer:SetPosition(-10, 65)
-    table.insert(self.elements, backContainer)
-
-    local btnBack = Button:new()
-    backContainer:AddChild(btnBack)
-    btnBack:SetSize(80, 40)
-    btnBack:SetPosition(0, 0)
-    btnBack:SetOpacity(0.8)
-
-    local backText = Text:new()
-    btnBack:AddChild(backText)
-    backText:SetStyleAuto()
-    backText.text = "BACK"
-    backText:SetFontSize(18)
-    backText:SetAlignment(HA_CENTER, VA_CENTER)
-
-    SubscribeToEvent(btnBack, "Released", "HandleBackToMenu")
-end
-
--- BACK按钮下方：Boss大招测试按钮
-function GameUI:_createTestSkillButton()
-    local uiRoot = ui.root
-
-    local testContainer = UIElement:new()
-    uiRoot:AddChild(testContainer)
-    testContainer:SetAlignment(HA_RIGHT, VA_TOP)
-    testContainer:SetSize(80, 40)
-    testContainer:SetPosition(-10, 110)
-    table.insert(self.elements, testContainer)
-
-    local btnTest = Button:new()
-    testContainer:AddChild(btnTest)
-    btnTest:SetSize(80, 40)
-    btnTest:SetPosition(0, 0)
-    btnTest:SetOpacity(0.8)
-
-    local testText = Text:new()
-    btnTest:AddChild(testText)
-    testText:SetStyleAuto()
-    testText.text = "SKILL"
-    testText:SetFontSize(16)
-    testText:SetAlignment(HA_CENTER, VA_CENTER)
-
-    SubscribeToEvent(btnTest, "Released", "HandleTestBossSkill")
-end
 
 -- 右上角五感状态图标（使用图片素材）
 function GameUI:_createSensesStatusUI()

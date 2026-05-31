@@ -288,12 +288,70 @@ end
 function _doLevelTransition(nextLevel)
     log:Write(LOG_INFO, "[Game] === Transitioning to Level " .. nextLevel .. " ===")
 
+    -- 保存当前玩家状态（用于前3关继承）
+    local savedHp = player and player:getHp() or nil
+    local savedSenses = nil
+    if sensesSystem then
+        savedSenses = {
+            deprived = {},
+            deprivedCount = sensesSystem.deprivedCount or 0,
+            driftEnabled = sensesSystem.driftEnabled,
+            driftOffset = sensesSystem.driftOffset,
+            uiDistortEnabled = sensesSystem.uiDistortEnabled,
+            trapWarningHidden = sensesSystem.trapWarningHidden,
+            timerGlitch = sensesSystem.timerGlitch,
+            audioMuted = sensesSystem.audioMuted,
+            visionFading = sensesSystem.visionFading,
+            visionFadeAlpha = sensesSystem.visionFadeAlpha,
+        }
+        for k, v in pairs(sensesSystem.deprived) do
+            savedSenses.deprived[k] = v
+        end
+    end
+
     -- 重建场景
     CreateScene()
     SetupCamera()
 
     -- 重新初始化游戏对象（levelManager.currentLevel 已更新）
     InitGameObjects()
+
+    -- 根据关卡决定是否继承状态
+    if nextLevel >= 4 then
+        -- 第4关及之后：恢复满血和五感
+        log:Write(LOG_INFO, "[Game] Level " .. nextLevel .. " >= 4: restoring full HP and senses")
+        -- player 已在 InitGameObjects 中以满血创建，无需额外操作
+        -- sensesSystem 已在 InitGameObjects 中 reset，五感全部正常
+        if gameUI then
+            gameUI:updateSensesIcons()
+        end
+    else
+        -- 前3关：继承上一关的血量和五感状态
+        if savedHp and player then
+            player.hp = savedHp
+            log:Write(LOG_INFO, "[Game] Level " .. nextLevel .. ": inherited HP=" .. savedHp)
+        end
+        if savedSenses and sensesSystem then
+            sensesSystem.deprived = savedSenses.deprived
+            sensesSystem.deprivedCount = savedSenses.deprivedCount
+            sensesSystem.driftEnabled = savedSenses.driftEnabled
+            sensesSystem.driftOffset = savedSenses.driftOffset
+            sensesSystem.uiDistortEnabled = savedSenses.uiDistortEnabled
+            sensesSystem.trapWarningHidden = savedSenses.trapWarningHidden
+            sensesSystem.timerGlitch = savedSenses.timerGlitch
+            sensesSystem.audioMuted = savedSenses.audioMuted
+            sensesSystem.visionFading = savedSenses.visionFading
+            sensesSystem.visionFadeAlpha = savedSenses.visionFadeAlpha
+            -- 恢复音频静音状态
+            if savedSenses.audioMuted then
+                audio:SetMasterGain("Effect", 0.0)
+            end
+            log:Write(LOG_INFO, "[Game] Level " .. nextLevel .. ": inherited senses (deprived=" .. savedSenses.deprivedCount .. ")")
+        end
+        if gameUI then
+            gameUI:updateSensesIcons()
+        end
+    end
 
     -- 启动新关卡
     cameraNode.position = Vector3(0, -1.9, -10)
