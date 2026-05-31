@@ -1,347 +1,235 @@
--- 2D横板平台游戏 - 主入口
-require "LuaScripts/Utilities/Sample"
-require "scripts/input_manager"
-require "scripts/player"
-require "scripts/ground"
-require "scripts/game_ui"
-require "scripts/enemy"
-require "scripts/menu_overlay"
-require "scripts/card_system"
-require "scripts/card_ui"
+-- ============================================================================
+-- 游戏开始界面
+-- 效果：先显示无角色背景，主角慢慢淡入；底栏左右眼睛位置循环五感图标
+--       底栏左侧大格放"开始游戏"，右侧大格放"结束游戏"
+-- ============================================================================
 
-local scene_ = nil
-local cameraNode = nil
-local camera_ = nil
-local player = nil
-local gameUI = nil
-local inputManager = nil
-local menuOverlay = nil
-local physicsWorld_ = nil
-local enemies = {}
-local cardSystem = nil
-local cardUI = nil
+local UI = require("urhox-libs/UI")
+
+-- ============================================================================
+-- 全局变量
+-- ============================================================================
+---@type Widget
+local uiRoot_ = nil
+---@type Widget
+local leftIcon_ = nil
+---@type Widget
+local rightIcon_ = nil
+---@type Widget
+local charLayer_ = nil
+
+-- 五感图标路径
+local normalIcons = {
+    "image/UI/正常状态/视觉.png",
+    "image/UI/正常状态/听觉.png",
+    "image/UI/正常状态/嗅觉.png",
+    "image/UI/正常状态/味觉.png",
+    "image/UI/正常状态/触觉.png",
+}
+
+local abnormalIcons = {
+    "image/UI/异常状态/视觉.png",
+    "image/UI/异常状态/听觉.png",
+    "image/UI/异常状态/嗅觉.png",
+    "image/UI/异常状态/味觉.png",
+    "image/UI/异常状态/触觉.png",
+}
+
+-- 图标循环状态
+local leftIndex_ = 1
+local rightIndex_ = 1
+local switchInterval_ = 1.5
+local leftTimer_ = 0
+local rightTimer_ = 0.75
+
+-- 角色淡入状态
+local fadeTimer_ = 0
+local fadeDuration_ = 2.5
+local fadeDelay_ = 1.0
+local fadeComplete_ = false
+
+-- ============================================================================
+-- 生命周期
+-- ============================================================================
 
 function Start()
-    SampleStart()
-    CreateScene()
+    graphics.windowTitle = "五感之骰"
 
-    -- 创建输入管理器
-    inputManager = InputManager:new()
+    UI.Init({
+        fonts = {
+            { family = "sans", weights = {
+                normal = "Fonts/MiSans-Regular.ttf",
+            } }
+        },
+        scale = UI.Scale.DEFAULT,
+    })
 
-    -- 创建地面
-    Ground:new(scene_, 0, -3.0, 20.0, 1.0)
-
-    -- 创建玩家
-    player = Player:new(scene_, inputManager)
-
-    -- 设置相机
-    SetupCamera()
-
-    -- 创建5种属性敌人（分布在玩家右边，间隔1.5米）
-    local elementList = { "fire", "water", "thunder", "wind", "ice" }
-    for i, elem in ipairs(elementList) do
-        local xPos = 2.0 + (i - 1) * 1.5  -- 间隔1.5米
-        local e = Enemy:new(scene_, camera_, player, xPos, -1.9, elem)
-        table.insert(enemies, e)
-    end
-    player.enemies = enemies  -- 攻击时动态查找最近敌人
-
-    -- 创建游戏UI（含BACK按钮，默认隐藏）
-    gameUI = GameUI:new(inputManager, player)
-
-    -- 创建卡牌系统
-    cardSystem = CardSystem:new()
-    cardUI = CardUI:new(cardSystem)
-    gameUI.cardSystem = cardSystem  -- 绑定卡牌倒计时到顶部UI
-
-    -- 卡牌系统回调：施法开始/结束通知玩家
-    cardSystem.onCastStart = function()
-        player.castingCard = true
-    end
-    cardSystem.onCastEnd = function()
-        player.castingCard = false
-    end
-    -- 卡牌使用效果回调
-    cardSystem.onCardUsed = function(card)
-        -- 根据卡牌类型执行效果
-        if card.type == CardSystem.TYPE_ATTACK then
-            -- 攻击型：对最近敌人造成伤害（克制加倍）
-            local myPos = player:getPosition()
-            local nearestEnemy = nil
-            local nearestDist = 3.0  -- 卡牌攻击范围比平A远
-            for _, e in ipairs(enemies) do
-                if e:isAlive() and e.node then
-                    local dist = math.abs(myPos.x - e.node.position.x)
-                    if dist < nearestDist then
-                        nearestDist = dist
-                        nearestEnemy = e
-                    end
-                end
-            end
-            if nearestEnemy then
-                local dmg = 2
-                if cardSystem:isCounter(card.element, nearestEnemy.element) then
-                    dmg = 4  -- 克制加倍
-                    log:Write(LOG_INFO, "[Card] Counter! " .. card.element .. " > " .. nearestEnemy.element)
-                end
-                nearestEnemy:takeDamage(dmg)
-            end
-        elseif card.type == CardSystem.TYPE_DEFENSE then
-            -- 防御型：给予玩家短暂无敌
-            player.invincible = true
-            player.invincibleTimer = 2.0
-            player.blinkTimer = 0
-        elseif card.type == CardSystem.TYPE_SUPPORT then
-            -- 辅助型：回复1点HP
-            player:heal(1)
-        end
-    end
-
-    -- 设置玩家死亡回调
-    player.gameOverCallback = function()
-        ShowGameOver()
-    end
-
-    -- 创建菜单覆盖层（默认显示，挡住游戏画面）
-    menuOverlay = MenuOverlay:new()
-    
-    -- Game Over UI（默认隐藏）
-    _createGameOverUI()
-
-    -- 初始状态：菜单显示，物理暂停，卡牌隐藏
-    cardUI:hide()
-    physicsWorld_.enabled = false
-
+    CreateUI()
     SubscribeToEvent("Update", "HandleUpdate")
-    log:Write(LOG_INFO, "[Game] Started")
-end
 
-function CreateScene()
-    scene_ = Scene()
-    scene_:CreateComponent("Octree")
-    scene_:CreateComponent("DebugRenderer")
-
-    physicsWorld_ = scene_:CreateComponent("PhysicsWorld2D")
-    physicsWorld_.gravity = Vector2(0, -9.81)
-
-    -- 方向光（DiffAlpha 材质需要光照才能正确显示精灵颜色）
-    local lightNode = scene_:CreateChild("DirectionalLight")
-    local light = lightNode:CreateComponent("Light")
-    light.lightType = LIGHT_DIRECTIONAL
-    light.color = Color(1, 1, 1, 1)
-    lightNode.direction = Vector3(0, 0, 1)
-end
-
-function SetupCamera()
-    cameraNode = scene_:CreateChild("Camera")
-    cameraNode.position = Vector3(0, 0, -10)
-
-    camera_ = cameraNode:CreateComponent("Camera")
-    camera_.orthographic = true
-    camera_.orthoSize = 5.2
-
-    local viewport = Viewport:new(scene_, camera_)
-    renderer:SetViewport(0, viewport)
-    renderer.defaultZone.fogColor = Color(0.6, 0.8, 1.0, 1.0)
-end
-
---- 从菜单进入游戏：重置所有状态，显示游戏UI
-function EnterGame()
-    player:reset()
-    for _, e in ipairs(enemies) do
-        e:reset()
-        e:showHpBar()
-    end
-    cameraNode.position = Vector3(0, -1.9, -10)
-    physicsWorld_.enabled = true
-    gameUI:show()
-    gameUI:resetCountdown()
-    cardSystem:reset()
-    cardUI:show()
-    log:Write(LOG_INFO, "[Game] Enter game scene")
-end
-
---- 从游戏回到菜单：隐藏游戏UI，暂停物理
-function ReturnToMenu()
-    physicsWorld_.enabled = false
-    gameUI:hide()
-    cardUI:hide()
-    for _, e in ipairs(enemies) do
-        e:hideHpBar()
-    end
-    menuOverlay:show()
-    log:Write(LOG_INFO, "[Game] Return to menu")
-end
-
--- 菜单按钮回调：开始游戏
-function HandleMenuStart(eventType, eventData)
-    menuOverlay:hide()
-    EnterGame()
-end
-
--- 菜单按钮回调：退出游戏
-function HandleMenuExit(eventType, eventData)
-    engine:Exit()
-end
-
--- 游戏中BACK按钮回调：回到菜单
-function HandleBackToMenu(eventType, eventData)
-    ReturnToMenu()
-end
-
--- UI按钮回调
-function HandleUILeftPressed(eventType, eventData)
-    inputManager:setTouchAction(InputManager.ACTION_LEFT, true)
-end
-
-function HandleUILeftReleased(eventType, eventData)
-    inputManager:setTouchAction(InputManager.ACTION_LEFT, false)
-end
-
-function HandleUIRightPressed(eventType, eventData)
-    inputManager:setTouchAction(InputManager.ACTION_RIGHT, true)
-end
-
-function HandleUIRightReleased(eventType, eventData)
-    inputManager:setTouchAction(InputManager.ACTION_RIGHT, false)
-end
-
-function HandleUIJumpPressed(eventType, eventData)
-    inputManager:setTouchAction(InputManager.ACTION_JUMP, true)
-end
-
-function HandleUIJumpReleased(eventType, eventData)
-    inputManager:setTouchAction(InputManager.ACTION_JUMP, false)
-end
-
-function HandleUIAttackPressed(eventType, eventData)
-    inputManager:setTouchAction(InputManager.ACTION_ATTACK, true)
-end
-
-function HandleUIAttackReleased(eventType, eventData)
-    inputManager:setTouchAction(InputManager.ACTION_ATTACK, false)
-end
-
--- 卡牌按钮点击回调（5个槽位）
-function HandleCardBtn1(eventType, eventData)
-    cardSystem:useCard(1)
-end
-function HandleCardBtn2(eventType, eventData)
-    cardSystem:useCard(2)
-end
-function HandleCardBtn3(eventType, eventData)
-    cardSystem:useCard(3)
-end
-function HandleCardBtn4(eventType, eventData)
-    cardSystem:useCard(4)
-end
-function HandleCardBtn5(eventType, eventData)
-    cardSystem:useCard(5)
-end
-
-function HandleUpdate(eventType, eventData)
-    local dt = eventData["TimeStep"]:GetFloat()
-
-    -- 菜单显示时暂停游戏逻辑
-    if menuOverlay:isVisible() then
-        return
-    end
-
-    -- 更新输入
-    inputManager:update()
-
-    -- 更新玩家
-    player:update(dt)
-
-    -- 更新所有敌人
-    for _, e in ipairs(enemies) do
-        e:update(dt)
-    end
-
-    -- 更新卡牌系统
-    cardSystem:update(dt)
-    cardUI:update(dt)
-
-    -- 更新UI（血量显示+倒计时）
-    gameUI:update(dt)
-
-    -- 相机延迟跟随玩家
-    local targetPos = player:getPosition()
-    local camPos = cameraNode.position
-    local lerpSpeed = 3.0
-    local newX = camPos.x + (targetPos.x - camPos.x) * lerpSpeed * dt
-    local newY = camPos.y + (targetPos.y - camPos.y) * lerpSpeed * dt
-    cameraNode.position = Vector3(newX, newY, -10)
-end
-
--- Game Over UI
-local gameOverContainer = nil
-
-function _createGameOverUI()
-    local uiRoot = ui.root
-
-    gameOverContainer = UIElement:new()
-    uiRoot:AddChild(gameOverContainer)
-    gameOverContainer:SetSize(graphics.width, graphics.height)
-    gameOverContainer:SetAlignment(HA_LEFT, VA_TOP)
-    gameOverContainer.priority = 900
-
-    -- 半透明黑色遮罩
-    local bg = BorderImage:new()
-    gameOverContainer:AddChild(bg)
-    bg:SetSize(graphics.width, graphics.height)
-    bg.color = Color(0, 0, 0, 0.8)
-
-    -- Game Over 文字
-    local title = Text:new()
-    gameOverContainer:AddChild(title)
-    title:SetStyleAuto()
-    title.text = "GAME OVER"
-    title:SetFontSize(48)
-    title:SetAlignment(HA_CENTER, VA_CENTER)
-    title:SetPosition(0, -30)
-    title.color = Color(1.0, 0.2, 0.2, 1.0)
-
-    -- 重新开始按钮
-    local restartBtn = Button:new()
-    gameOverContainer:AddChild(restartBtn)
-    restartBtn:SetStyleAuto()
-    restartBtn:SetSize(160, 50)
-    restartBtn:SetAlignment(HA_CENTER, VA_CENTER)
-    restartBtn:SetPosition(0, 40)
-
-    local btnText = Text:new()
-    restartBtn:AddChild(btnText)
-    btnText:SetStyleAuto()
-    btnText.text = "RESTART"
-    btnText:SetFontSize(22)
-    btnText:SetAlignment(HA_CENTER, VA_CENTER)
-
-    SubscribeToEvent(restartBtn, "Released", "HandleRestart")
-
-    gameOverContainer.visible = false
-end
-
-function ShowGameOver()
-    if gameOverContainer then
-        gameOverContainer.visible = true
-    end
-    physicsWorld_.enabled = false
-    gameUI:hide()
-    cardUI:hide()
-    for _, e in ipairs(enemies) do
-        e:hideHpBar()
-    end
-    log:Write(LOG_INFO, "[Game] Game Over!")
-end
-
-function HandleRestart(eventType, eventData)
-    if gameOverContainer then
-        gameOverContainer.visible = false
-    end
-    EnterGame()
+    print("=== 开始界面已加载 ===")
 end
 
 function Stop()
-    log:Write(LOG_INFO, "[Game] Stopped")
+    UI.Shutdown()
+end
+
+-- ============================================================================
+-- UI 构建
+-- ============================================================================
+
+function CreateUI()
+    -- 有角色的图层（全屏覆盖，初始透明，渐渐显现）
+    charLayer_ = UI.Panel {
+        id = "charLayer",
+        position = "absolute",
+        top = 0,
+        left = 0,
+        width = "100%",
+        height = "100%",
+        backgroundImage = "image/game_start_screen_20260531013052.png",
+        backgroundFit = "cover",
+        opacity = 0,
+        pointerEvents = "none",
+    }
+
+    -- 左侧五感图标（红框位置 - 底栏最左边的眼睛格）
+    leftIcon_ = UI.Panel {
+        id = "leftIcon",
+        position = "absolute",
+        bottom = "1.0%",
+        left = "11.5%",
+        width = "4.2%",
+        height = "6.5%",
+        backgroundImage = normalIcons[1],
+        backgroundFit = "contain",
+    }
+
+    -- 右侧五感图标（红框位置 - 底栏最右边的眼睛格）
+    rightIcon_ = UI.Panel {
+        id = "rightIcon",
+        position = "absolute",
+        bottom = "1.0%",
+        right = "11.5%",
+        width = "4.2%",
+        height = "6.5%",
+        backgroundImage = abnormalIcons[1],
+        backgroundFit = "contain",
+    }
+
+    -- 开始游戏按钮（绿框位置 - 底栏左侧大格）
+    local startBtn = UI.Panel {
+        id = "startBtn",
+        position = "absolute",
+        bottom = "0.8%",
+        left = "17%",
+        width = "25%",
+        height = "6.8%",
+        justifyContent = "center",
+        alignItems = "center",
+        borderRadius = 4,
+        children = {
+            UI.Label {
+                text = "开始游戏",
+                fontSize = 18,
+                fontColor = { 200, 180, 220, 255 },
+            },
+        },
+        onClick = function(self)
+            print(">>> 开始游戏 <<<")
+        end,
+    }
+
+    -- 结束游戏按钮（白框位置 - 底栏右侧大格）
+    local exitBtn = UI.Panel {
+        id = "exitBtn",
+        position = "absolute",
+        bottom = "0.8%",
+        right = "17%",
+        width = "25%",
+        height = "6.8%",
+        justifyContent = "center",
+        alignItems = "center",
+        borderRadius = 4,
+        children = {
+            UI.Label {
+                text = "结束游戏",
+                fontSize = 18,
+                fontColor = { 200, 180, 220, 255 },
+            },
+        },
+        onClick = function(self)
+            print(">>> 结束游戏 <<<")
+            engine:Exit()
+        end,
+    }
+
+    -- 根布局
+    uiRoot_ = UI.Panel {
+        width = "100%",
+        height = "100%",
+        backgroundImage = "image/edited_game_start_screen_no_char_20260531015554.png",
+        backgroundFit = "cover",
+        children = {
+            charLayer_,
+            leftIcon_,
+            rightIcon_,
+            startBtn,
+            exitBtn,
+        }
+    }
+
+    UI.SetRoot(uiRoot_)
+end
+
+-- ============================================================================
+-- 更新循环
+-- ============================================================================
+
+---@param eventType string
+---@param eventData UpdateEventData
+function HandleUpdate(eventType, eventData)
+    local dt = eventData["TimeStep"]:GetFloat()
+
+    -- 角色淡入动画
+    if not fadeComplete_ then
+        fadeTimer_ = fadeTimer_ + dt
+        if fadeTimer_ > fadeDelay_ then
+            local elapsed = fadeTimer_ - fadeDelay_
+            local progress = math.min(elapsed / fadeDuration_, 1.0)
+            local eased = progress * progress * (3 - 2 * progress)
+            if charLayer_ then
+                charLayer_:SetStyle({ opacity = eased })
+            end
+            if progress >= 1.0 then
+                fadeComplete_ = true
+            end
+        end
+    end
+
+    -- 左侧图标循环（正常状态五感）
+    leftTimer_ = leftTimer_ + dt
+    if leftTimer_ >= switchInterval_ then
+        leftTimer_ = leftTimer_ - switchInterval_
+        leftIndex_ = leftIndex_ + 1
+        if leftIndex_ > #normalIcons then
+            leftIndex_ = 1
+        end
+        if leftIcon_ then
+            leftIcon_:SetBackgroundImage(normalIcons[leftIndex_])
+        end
+    end
+
+    -- 右侧图标循环（异常状态五感）
+    rightTimer_ = rightTimer_ + dt
+    if rightTimer_ >= switchInterval_ then
+        rightTimer_ = rightTimer_ - switchInterval_
+        rightIndex_ = rightIndex_ + 1
+        if rightIndex_ > #abnormalIcons then
+            rightIndex_ = 1
+        end
+        if rightIcon_ then
+            rightIcon_:SetBackgroundImage(abnormalIcons[rightIndex_])
+        end
+    end
 end
