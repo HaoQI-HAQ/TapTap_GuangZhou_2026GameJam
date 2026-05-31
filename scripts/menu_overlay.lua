@@ -46,33 +46,52 @@ function MenuOverlay:_create()
         log:Write(LOG_WARNING, "[MenuOverlay] BG texture not found, fallback black")
     end
 
-    -- ========== 标题层（透明热区覆盖图片中的按钮位置） ==========
+    -- ========== 标题层（底部居中按钮） ==========
     self.titleLayer = UIElement:new()
     self.panel:AddChild(self.titleLayer)
     self.titleLayer:SetSize(graphics.width, graphics.height)
     self.titleLayer:SetPosition(0, 0)
 
-    -- 图片中"开始旅途"按钮的透明热区（位置基于1935x1080原图比例换算）
-    -- 按钮大约在画面中下偏左: x~30%, y~75%, 宽~20%, 高~8%
+    -- 底部按钮容器（水平排列两个按钮）
     local sw = graphics.width
     local sh = graphics.height
+    local btnW = 180
+    local btnH = 50
+    local gap = 40  -- 两按钮间距
+
+    -- "开始旅途"按钮
     local btnStart = Button:new()
     self.titleLayer:AddChild(btnStart)
-    btnStart:SetSize(math.floor(sw * 0.22), math.floor(sh * 0.09))
-    btnStart:SetAlignment(HA_LEFT, VA_TOP)
-    btnStart:SetPosition(math.floor(sw * 0.28), math.floor(sh * 0.72))
-    btnStart.color = Color(0, 0, 0, 0)  -- 完全透明，无边框
+    btnStart:SetStyleAuto()
+    btnStart:SetSize(btnW, btnH)
+    btnStart:SetAlignment(HA_CENTER, VA_BOTTOM)
+    btnStart:SetPosition(-math.floor((btnW + gap) / 2), -40)
+    btnStart:SetOpacity(0.85)
+
+    local startText = Text:new()
+    btnStart:AddChild(startText)
+    startText:SetStyleAuto()
+    startText.text = "开始旅途"
+    startText:SetFontSize(22)
+    startText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnStart, "Released", "HandleMenuShowSelect")
 
-    -- 图片中"退出游戏"按钮的透明热区
-    -- 按钮大约在画面右下: x~70%, y~75%, 宽~20%, 高~8%
+    -- "退出游戏"按钮
     local btnExit = Button:new()
     self.titleLayer:AddChild(btnExit)
-    btnExit:SetSize(math.floor(sw * 0.22), math.floor(sh * 0.09))
-    btnExit:SetAlignment(HA_LEFT, VA_TOP)
-    btnExit:SetPosition(math.floor(sw * 0.68), math.floor(sh * 0.72))
-    btnExit.color = Color(0, 0, 0, 0)  -- 完全透明，无边框
+    btnExit:SetStyleAuto()
+    btnExit:SetSize(btnW, btnH)
+    btnExit:SetAlignment(HA_CENTER, VA_BOTTOM)
+    btnExit:SetPosition(math.floor((btnW + gap) / 2), -40)
+    btnExit:SetOpacity(0.85)
+
+    local exitText = Text:new()
+    btnExit:AddChild(exitText)
+    exitText:SetStyleAuto()
+    exitText.text = "退出游戏"
+    exitText:SetFontSize(22)
+    exitText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnExit, "Released", "HandleMenuExit")
 
