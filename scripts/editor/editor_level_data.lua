@@ -42,10 +42,6 @@ M.GAME_LEVELS = {
         enemies = {
             { x = 2.5, y = 1.0, element = "fire" },
             { x = 4.0, y = 1.0, element = "ice" },
-            { x = 7.0, y = -1.9, element = "fire" },
-            { x = 10.0, y = -1.9, element = "thunder" },
-            { x = 12.0, y = -1.9, element = "grass" },
-            { x = 14.0, y = -1.9, element = "earth" },
         },
         portalX = 20.0,
         portalY = -2.0,
@@ -60,13 +56,8 @@ M.GAME_LEVELS = {
         enemies = {
             { x = 4.0, y = 1.0, element = "fire" },
             { x = 6.0, y = 1.0, element = "ice" },
-            { x = 8.0, y = -1.9, element = "thunder" },
             { x = 11.0, y = 2.0, element = "grass" },
             { x = 13.0, y = 2.0, element = "earth" },
-            { x = 15.0, y = -1.9, element = "fire" },
-            { x = 18.0, y = -1.9, element = "ice" },
-            { x = 21.0, y = -1.9, element = "thunder" },
-            { x = 24.0, y = -1.9, element = "grass" },
         },
         portalX = 30.0,
         portalY = -2.0,
@@ -85,9 +76,6 @@ M.GAME_LEVELS = {
             { x = 14.0, y = 2.5, element = "thunder" },
             { x = 16.0, y = 2.5, element = "grass" },
             { x = 22.0, y = 1.0, element = "earth" },
-            { x = 10.0, y = -1.9, element = "fire" },
-            { x = 18.0, y = -1.9, element = "ice" },
-            { x = 25.0, y = -1.9, element = "thunder" },
         },
         portalX = 32.0,
         portalY = -2.0,
@@ -110,8 +98,6 @@ M.GAME_LEVELS = {
             { x = 20.0, y = 1.5, element = "fire" },
             { x = 26.0, y = 2.5, element = "ice" },
             { x = 28.0, y = 2.5, element = "thunder" },
-            { x = 15.0, y = -1.9, element = "grass" },
-            { x = 30.0, y = -1.9, element = "earth" },
         },
         portalX = 35.0,
         portalY = -2.0,
@@ -124,7 +110,6 @@ M.GAME_LEVELS = {
             { x = 5.0, y = 1.0, w = 4.0, h = 0.3 },
         },
         enemies = {
-            { x = 5.0, y = -1.9, element = "fire", boss = true },
         },
         portalX = nil,
         portalY = nil,
@@ -570,7 +555,7 @@ function M.mixin(cls)
                 end
             elseif src.enemies == "boss_only" then
                 local bossX = (src.groundWidth or 80) * 0.4
-                table.insert(level.enemies, { x = bossX, y = -1.9, element = "fire", boss = true })
+                table.insert(level.enemies, { x = bossX, y = 2.0, element = "fire", boss = true })
             end
             table.insert(self.levels, level)
         end

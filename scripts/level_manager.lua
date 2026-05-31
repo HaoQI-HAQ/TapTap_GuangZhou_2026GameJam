@@ -17,10 +17,6 @@ local LEVELS = {
         enemies = {
             { x = 2.5,  y = 1.0, element = "fire" },
             { x = 4.0,  y = 1.0, element = "ice" },
-            { x = 7.0,  y = -1.9, element = "fire" },
-            { x = 10.0, y = -1.9, element = "thunder" },
-            { x = 12.0, y = -1.9, element = "grass" },
-            { x = 14.0, y = -1.9, element = "earth" },
         },
         -- 传送门位置（右侧平台尽头）
         portalX = 20.0,
@@ -39,7 +35,6 @@ local LEVELS = {
         spawnZones = {
             { xMin = 3.0, xMax = 6.0, y = 1.0 },
             { xMin = 11.0, xMax = 14.0, y = 2.0 },
-            { xMin = 5.0, xMax = 25.0, y = -1.9 },
         },
         portalX = 30.0,
         portalY = -2.0,
@@ -59,7 +54,6 @@ local LEVELS = {
             { xMin = 5.0, xMax = 9.0, y = 1.5 },
             { xMin = 13.0, xMax = 17.0, y = 2.5 },
             { xMin = 21.0, xMax = 24.0, y = 1.0 },
-            { xMin = 5.0, xMax = 28.0, y = -1.9 },
         },
         portalX = 32.0,
         portalY = -2.0,
@@ -81,7 +75,6 @@ local LEVELS = {
             { xMin = 9.0, xMax = 12.0, y = 2.0 },
             { xMin = 17.0, xMax = 21.0, y = 1.5 },
             { xMin = 25.0, xMax = 28.0, y = 2.5 },
-            { xMin = 5.0, xMax = 32.0, y = -1.9 },
         },
         portalX = 35.0,
         portalY = -2.0,
@@ -151,7 +144,7 @@ function LevelManager:generateEnemies(level)
             element = ELEMENT_POOL[math.random(1, #ELEMENT_POOL)]
         end
         return {
-            { x = 5.0, y = -1.9, element = element, boss = true },
+            { x = 5.0, y = 2.0, element = element, boss = true },
         }
     elseif cfg.enemies == "random" then
         -- 随机生成敌人
