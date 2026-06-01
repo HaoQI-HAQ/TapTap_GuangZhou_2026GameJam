@@ -37,6 +37,9 @@ function GameUI:_setup()
     -- 应用编辑器保存的UI布局配置
     self:_applyEditorLayout()
 
+    -- 强制重设摇杆/跳跃/攻击按钮的尺寸（覆盖编辑器配置，确保手机端够大）
+    self:_forceControlSizes()
+
     -- 默认隐藏（等菜单点击START后再显示）
     self:hide()
 
@@ -106,9 +109,9 @@ function GameUI:_createMoveButtons()
     local uiRoot = ui.root
     local U = ScreenUtils.ui
 
-    local joystickSize = U(150)
-    local thumbSize = U(56)
-    local deadZone = U(12)  -- 死区像素
+    local joystickSize = U(300)
+    local thumbSize = U(112)
+    local deadZone = U(24)  -- 死区像素
 
     -- 摇杆底座容器
     local container = UIElement:new()
@@ -158,7 +161,7 @@ function GameUI:_createJumpButton()
     local uiRoot = ui.root
     local U = ScreenUtils.ui
 
-    local btnSize = U(88)
+    local btnSize = U(176)
     local jumpContainer = UIElement:new()
     uiRoot:AddChild(jumpContainer)
     jumpContainer:SetAlignment(HA_RIGHT, VA_BOTTOM)
@@ -195,13 +198,13 @@ function GameUI:_createAttackButton()
     local uiRoot = ui.root
     local U = ScreenUtils.ui
 
-    local btnSize = U(88)
+    local btnSize = U(176)
     local attackContainer = UIElement:new()
     uiRoot:AddChild(attackContainer)
     attackContainer:SetAlignment(HA_RIGHT, VA_BOTTOM)
     attackContainer:SetSize(btnSize, btnSize)
-    -- 跳跃按钮右边距24+宽88+间距20 = 132
-    attackContainer:SetPosition(U(-132), U(-30))
+    -- 跳跃按钮右边距24+宽176+间距20 = 220
+    attackContainer:SetPosition(U(-220), U(-30))
     table.insert(self.elements, attackContainer)
 
     self.attackContainer = attackContainer
@@ -326,7 +329,50 @@ function GameUI:hide()
     end
 end
 
--- 辅助：判断触摸的UI元素是否属于指定容器
+-- 强制设置摇杆/跳跃/攻击按钮的尺寸（在编辑器布局之后调用，确保不被覆盖）
+-- 原始值：摇杆150/56，按钮88。放大一倍：摇杆300/112，按钮176
+function GameUI:_forceControlSizes()
+    local U = ScreenUtils.ui
+
+    -- 摇杆：原150→300，拇指原56→112
+    local joystickSize = U(300)
+    local thumbSize = U(112)
+    if self.joystickContainer then
+        self.joystickContainer:SetSize(joystickSize, joystickSize)
+    end
+    if self.joystickThumb then
+        self.joystickThumb:SetSize(thumbSize, thumbSize)
+        local centerX = (joystickSize - thumbSize) / 2
+        local centerY = (joystickSize - thumbSize) / 2
+        self.joystickThumb:SetPosition(centerX, centerY)
+        self.joystickCenterX = centerX
+        self.joystickCenterY = centerY
+        self.joystickMaxDist = (joystickSize - thumbSize) / 2
+    end
+
+    -- 跳跃按钮：原88→176
+    local btnSize = U(176)
+    if self.jumpContainer then
+        self.jumpContainer:SetSize(btnSize, btnSize)
+    end
+    if self.btnJump then
+        self.btnJump:SetSize(btnSize, btnSize)
+        local jumpImg = self.btnJump:GetChild(0)
+        if jumpImg then jumpImg:SetSize(btnSize, btnSize) end
+    end
+
+    -- 攻击按钮：原88→176
+    if self.attackContainer then
+        self.attackContainer:SetSize(btnSize, btnSize)
+    end
+    if self.btnAttack then
+        self.btnAttack:SetSize(btnSize, btnSize)
+        local atkImg = self.btnAttack:GetChild(0)
+        if atkImg then atkImg:SetSize(btnSize, btnSize) end
+    end
+end
+
+-- 辅助：判断触摸的UI元素是否属于指定容器（通过 parent 链）
 function GameUI:_isTouchOnElement(touchedElem, container)
     if not touchedElem or not container then return false end
     local elem = touchedElem
@@ -342,8 +388,18 @@ function GameUI:_isTouchOnJoystick(touchedElem)
     return self:_isTouchOnElement(touchedElem, self.joystickContainer)
 end
 
+-- 辅助：坐标命中测试 - 判断屏幕坐标(px,py)是否在容器的屏幕矩形内
+-- px,py 为 UI 坐标空间（已转换）
+function GameUI:_hitTestContainer(px, py, container)
+    if not container or not container.visible then return false end
+    local sp = container.screenPosition
+    local sz = container.size
+    return px >= sp.x and px <= sp.x + sz.x and py >= sp.y and py <= sp.y + sz.y
+end
+
 -- 多点触控按钮检测（每帧调用）
--- 解决：移动端第一个触摸点被摇杆占用后，其他手指无法触发 Button Pressed/Released 事件
+-- 解决：移动端第一个触摸点被摇杆占用后，其他手指的 touchedElement 可能为nil
+-- 策略：优先用 touchedElement 判断，备选用坐标命中测试
 function GameUI:_updateTouchButtons()
     local numTouches = input.numTouches
     if numTouches <= 0 then
@@ -359,39 +415,101 @@ function GameUI:_updateTouchButtons()
         return
     end
 
+    -- 坐标空间转换（touch.position 在 graphics 像素空间，screenPosition 在 ui.root 空间）
+    local gfxW = graphics:GetWidth()
+    local gfxH = graphics:GetHeight()
+    local uiW = ui.root.width
+    local uiH = ui.root.height
+    local scaleX = (gfxW > 0 and uiW > 0) and (uiW / gfxW) or 1.0
+    local scaleY = (gfxH > 0 and uiH > 0) and (uiH / gfxH) or 1.0
+
     local jumpTouched = false
     local attackTouched = false
+    local cardTouching = false
 
     for i = 0, numTouches - 1 do
         local touch = input:GetTouch(i)
-        if touch and touch.touchedElement then
-            -- 跳跃按钮
-            if self.btnJump and self:_isTouchOnElement(touch.touchedElement, self.jumpContainer) then
-                jumpTouched = true
+        if touch then
+            -- 跳过已被摇杆占用的触摸点
+            if self.joystickActive and self.joystickTouchID == touch.touchID then
+                goto continue
             end
-            -- 攻击按钮
-            if self.btnAttack and self:_isTouchOnElement(touch.touchedElement, self.attackContainer) then
-                attackTouched = true
+
+            local hitJump = false
+            local hitAttack = false
+            local hitCard = false
+
+            -- 优先通过 touchedElement 判断（准确性最高）
+            if touch.touchedElement then
+                if self.btnJump and self:_isTouchOnElement(touch.touchedElement, self.jumpContainer) then
+                    hitJump = true
+                end
+                if self.btnAttack and self:_isTouchOnElement(touch.touchedElement, self.attackContainer) then
+                    hitAttack = true
+                end
+                if G and G.cardUI and G.cardUI.container then
+                    if self:_isTouchOnElement(touch.touchedElement, G.cardUI.container) then
+                        hitCard = true
+                    end
+                end
             end
-            -- 卡牌按钮（通过全局 cardUI 引用）
-            if G and G.cardUI and G.cardUI.container then
-                if self:_isTouchOnElement(touch.touchedElement, G.cardUI.container) then
-                    -- 找到具体哪张卡牌被按下
+
+            -- 备选：touchedElement 为 nil 时用坐标命中测试
+            if not touch.touchedElement or (not hitJump and not hitAttack and not hitCard) then
+                local tx = touch.position.x * scaleX
+                local ty = touch.position.y * scaleY
+
+                if not hitJump and self.jumpContainer then
+                    if self:_hitTestContainer(tx, ty, self.jumpContainer) then
+                        hitJump = true
+                    end
+                end
+                if not hitAttack and self.attackContainer then
+                    if self:_hitTestContainer(tx, ty, self.attackContainer) then
+                        hitAttack = true
+                    end
+                end
+                if not hitCard and G and G.cardUI and G.cardUI.container then
+                    if self:_hitTestContainer(tx, ty, G.cardUI.container) then
+                        hitCard = true
+                    end
+                end
+            end
+
+            if hitJump then jumpTouched = true end
+            if hitAttack then attackTouched = true end
+
+            -- 卡牌处理：找到具体哪张被按下
+            if hitCard and G and G.cardUI then
+                cardTouching = true
+                if not self._touchCardActive then
+                    -- 确定具体卡牌槽位
+                    local tx = touch.position.x * scaleX
+                    local ty = touch.position.y * scaleY
                     for ci = 1, 5 do
                         local slot = G.cardUI.cardSlots[ci]
-                        if slot and slot.btn and self:_isTouchOnElement(touch.touchedElement, slot.btn) then
-                            if not self._touchCardActive then
+                        if slot and slot.active and slot.btn and slot.btn.visible then
+                            if touch.touchedElement and self:_isTouchOnElement(touch.touchedElement, slot.btn) then
                                 self._touchCardActive = ci
-                                -- 触发卡牌使用
                                 local idx = G.cardUI:getHandIndex(ci)
                                 if idx and G.cardSystem then
                                     G.cardSystem:useCard(idx)
                                 end
+                                break
+                            elseif self:_hitTestContainer(tx, ty, slot.btn) then
+                                self._touchCardActive = ci
+                                local idx = G.cardUI:getHandIndex(ci)
+                                if idx and G.cardSystem then
+                                    G.cardSystem:useCard(idx)
+                                end
+                                break
                             end
                         end
                     end
                 end
             end
+
+            ::continue::
         end
     end
 
@@ -414,20 +532,7 @@ function GameUI:_updateTouchButtons()
     end
 
     -- 卡牌释放（手指离开后允许再次点击）
-    if not self._touchCardTouching then
-        self._touchCardActive = nil
-    end
-    self._touchCardTouching = false
-    for i = 0, numTouches - 1 do
-        local touch = input:GetTouch(i)
-        if touch and touch.touchedElement and G and G.cardUI and G.cardUI.container then
-            if self:_isTouchOnElement(touch.touchedElement, G.cardUI.container) then
-                self._touchCardTouching = true
-                break
-            end
-        end
-    end
-    if not self._touchCardTouching then
+    if not cardTouching then
         self._touchCardActive = nil
     end
 end
@@ -644,6 +749,9 @@ function GameUI:_applyEditorLayout()
         senses     = self.sensesContainer,
     }
 
+    -- 这三个控件的尺寸由代码强制控制（放大一倍），编辑器配置只影响位置
+    local sizeSkip = { joystick = true, jump_btn = true, attack_btn = true }
+
     for id, elem in pairs(data.elements) do
         local container = containerMap[id]
         if container and elem.visible ~= false then
@@ -658,12 +766,15 @@ function GameUI:_applyEditorLayout()
             local py = S(elem.y * CANVAS_SCALE)
             container:SetPosition(px, py)
 
-            -- 应用尺寸
-            local pw = S(elem.w * CANVAS_SCALE)
-            local ph = S(elem.h * CANVAS_SCALE)
-            container:SetSize(pw, ph)
-
-            log:Write(LOG_DEBUG, string.format("[GameUI] Applied layout for '%s': pos(%d,%d) size(%d,%d)", id, px, py, pw, ph))
+            -- 应用尺寸（摇杆/跳跃/攻击跳过，由_forceControlSizes控制）
+            if not sizeSkip[id] then
+                local pw = S(elem.w * CANVAS_SCALE)
+                local ph = S(elem.h * CANVAS_SCALE)
+                container:SetSize(pw, ph)
+                log:Write(LOG_DEBUG, string.format("[GameUI] Applied layout for '%s': pos(%d,%d) size(%d,%d)", id, px, py, pw, ph))
+            else
+                log:Write(LOG_DEBUG, string.format("[GameUI] Applied layout for '%s': pos(%d,%d) size=forced", id, px, py))
+            end
         end
     end
 
