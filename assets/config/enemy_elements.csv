@@ -1,0 +1,8 @@
+element,name,icon,color_r,color_g,color_b,beats,weak,description
+fire,火,🔥,1.0,0.3,0.1,wind;ice,water,火属性敌人
+water,水,💧,0.1,0.5,1.0,fire,thunder,水属性敌人
+thunder,雷,⚡,0.9,0.8,0.1,water,wind,雷属性敌人
+wind,风,🌪️,0.2,0.9,0.4,thunder,fire,风属性敌人
+ice,冰,❄️,0.5,0.9,1.0,wind;thunder,fire,冰属性敌人
+grass,草,🌿,0.2,0.8,0.3,water,fire,草属性敌人
+earth,土,🪨,0.55,0.27,0.07,thunder,ice,土属性敌人

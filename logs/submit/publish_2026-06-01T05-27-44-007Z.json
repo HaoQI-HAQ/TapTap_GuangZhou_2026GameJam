@@ -1,0 +1,228 @@
+{
+  "startTime": "2026-06-01T05:27:44.007Z",
+  "endTime": "2026-06-01T05:28:07.973Z",
+  "duration": "23966ms",
+  "result": {
+    "success": true
+  },
+  "steps": [
+    {
+      "time": "2026-06-01T05:27:44.192Z",
+      "stage": "upload_to_cdn",
+      "data": {
+        "status": "start"
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:00.876Z",
+      "stage": "upload_to_cdn",
+      "data": {
+        "status": "done"
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:00.876Z",
+      "stage": "network_config",
+      "data": {
+        "env": "production"
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:00.878Z",
+      "stage": "load_config",
+      "data": {
+        "projectId": "p_or7d",
+        "configPath": "/userspaces/c8ba0d7d-9f39-4ee4-b1d9-25563986661d/workspace/.project/project.json",
+        "taptap_publish": {
+          "app_id": 865053,
+          "title": "五秒真男人",
+          "description": "五秒倒计时的紧张卡牌动作游戏！在五感逐渐被剥夺的绝望中，用元素卡牌组合出最强一击，击败Boss通关！",
+          "category": "action",
+          "screen_orientation": "landscape",
+          "collection_type": "sce",
+          "trial_note": "修复运行时崩溃，优化编辑器体验",
+          "app_platforms": "1,2",
+          "developer_id": 410748,
+          "miniapp_id": "tapmcu0nsbnosl26oh"
+        },
+        "assets": {
+          "icon": "./game_material/ICON_2026-05-31T05-23-13_01.png",
+          "screenshots": [
+            "./game_material/SCREENSHOT_2026-05-31T05-24-54_01.png",
+            "./game_material/SCREENSHOT_2026-05-31T05-24-54_02.png",
+            "./game_material/SCREENSHOT_2026-05-31T05-24-54_03.jpg"
+          ],
+          "promotional_image": "./game_material/PROMO_2026-05-31T05-26-25_01.jpg",
+          "cover_horizontal": "./.project/game_material/COVER_HORIZONTAL_2026-06-01T05-23-42_01.png",
+          "cover_horizontal_url": "https://tapcode-sce.spark.xd.com/assets/game_material/五秒真男人/COVER_HORIZONTAL_2026-06-01T05-23-42_01.png",
+          "cover_vertical": "./.project/game_material/COVER_VERTICAL_2026-06-01T05-23-42_01.png",
+          "cover_vertical_url": "https://tapcode-sce.spark.xd.com/assets/game_material/五秒真男人/COVER_VERTICAL_2026-06-01T05-23-42_01.png"
+        }
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:01.176Z",
+      "stage": "update_game",
+      "data": {
+        "app_id": 865053,
+        "developer_id": 410748
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:01.180Z",
+      "stage": "upload_assets",
+      "data": {
+        "status": "start",
+        "assets": {
+          "icon": "./game_material/ICON_2026-05-31T05-23-13_01.png",
+          "screenshots": [
+            "./game_material/SCREENSHOT_2026-05-31T05-24-54_01.png",
+            "./game_material/SCREENSHOT_2026-05-31T05-24-54_02.png",
+            "./game_material/SCREENSHOT_2026-05-31T05-24-54_03.jpg"
+          ],
+          "promotional_image": "./game_material/PROMO_2026-05-31T05-26-25_01.jpg",
+          "cover_horizontal": "./.project/game_material/COVER_HORIZONTAL_2026-06-01T05-23-42_01.png",
+          "cover_horizontal_url": "https://tapcode-sce.spark.xd.com/assets/game_material/五秒真男人/COVER_HORIZONTAL_2026-06-01T05-23-42_01.png",
+          "cover_vertical": "./.project/game_material/COVER_VERTICAL_2026-06-01T05-23-42_01.png",
+          "cover_vertical_url": "https://tapcode-sce.spark.xd.com/assets/game_material/五秒真男人/COVER_VERTICAL_2026-06-01T05-23-42_01.png"
+        }
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:04.445Z",
+      "stage": "upload_cover_horizontal",
+      "data": {
+        "path": "./.project/game_material/COVER_HORIZONTAL_2026-06-01T05-23-42_01.png",
+        "resolvedPath": "/userspaces/c8ba0d7d-9f39-4ee4-b1d9-25563986661d/workspace/.project/game_material/COVER_HORIZONTAL_2026-06-01T05-23-42_01.png"
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:04.473Z",
+      "stage": "upload_cover_horizontal",
+      "data": {
+        "fileSize": 2734672
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:05.237Z",
+      "stage": "upload_cover_horizontal",
+      "data": {
+        "response": {
+          "result": true,
+          "image_url": "https://img-tc.tapimg.com/market/images/FrKaaJo5qBDdRBacQP64ACvYvGKM.png"
+        }
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:05.238Z",
+      "stage": "upload_cover_vertical",
+      "data": {
+        "path": "./.project/game_material/COVER_VERTICAL_2026-06-01T05-23-42_01.png",
+        "resolvedPath": "/userspaces/c8ba0d7d-9f39-4ee4-b1d9-25563986661d/workspace/.project/game_material/COVER_VERTICAL_2026-06-01T05-23-42_01.png"
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:05.265Z",
+      "stage": "upload_cover_vertical",
+      "data": {
+        "fileSize": 3138221
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:06.174Z",
+      "stage": "upload_cover_vertical",
+      "data": {
+        "response": {
+          "result": true,
+          "image_url": "https://img-tc.tapimg.com/market/images/Fg8ZbI4Lpy9DGQZrNrRm3xKG41Je.png"
+        }
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:06.174Z",
+      "stage": "upload_assets",
+      "data": {
+        "status": "done",
+        "uploadedAssets": {
+          "iconUrl": "https://img-tc.tapimg.com/market/images/FrqiGoExKNAAuLYnUBfK5XgSmTWC.png",
+          "screenshotUrls": [
+            "https://img-tc.tapimg.com/market/images/Fm71_4NbvG2CsZzL6ofZp3FCFhAC.png",
+            "https://img-tc.tapimg.com/market/images/FnUX1gfks8Io-kuwD_-UxB0_ldlM.png",
+            "https://img-tc.tapimg.com/market/images/Fnyy7oOhGLEU_IGRRFAbt8BkPaqO.jpg"
+          ],
+          "bannerUrl": "https://img-tc.tapimg.com/market/images/FssOAJIXfW5m321IctfUMgV9270v.jpg",
+          "coverUrl": "https://img-tc.tapimg.com/market/images/FrKaaJo5qBDdRBacQP64ACvYvGKM.png",
+          "coverVerticalUrl": "https://img-tc.tapimg.com/market/images/Fg8ZbI4Lpy9DGQZrNrRm3xKG41Je.png"
+        }
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:06.174Z",
+      "stage": "submit_spark_request",
+      "data": {
+        "app_id": 865053,
+        "developer_id": 410748,
+        "map_version": "10",
+        "sce_project_id": "p_or7d",
+        "category": "action",
+        "collection_type": "action",
+        "description": "五秒倒计时的紧张卡牌动作游戏！在五感逐渐被剥夺的绝望中，用元素卡牌组合出最强一击，击败Boss通关！",
+        "screen_orientation": 2,
+        "title": "五秒真男人",
+        "icon": "https://img-tc.tapimg.com/market/images/FrqiGoExKNAAuLYnUBfK5XgSmTWC.png",
+        "screenshots": [
+          "https://img-tc.tapimg.com/market/images/Fm71_4NbvG2CsZzL6ofZp3FCFhAC.png",
+          "https://img-tc.tapimg.com/market/images/FnUX1gfks8Io-kuwD_-UxB0_ldlM.png",
+          "https://img-tc.tapimg.com/market/images/Fnyy7oOhGLEU_IGRRFAbt8BkPaqO.jpg"
+        ],
+        "banner": "https://img-tc.tapimg.com/market/images/FssOAJIXfW5m321IctfUMgV9270v.jpg",
+        "trial_note": "修复运行时崩溃，优化编辑器体验",
+        "app_platforms": "1,2",
+        "cover": "https://img-tc.tapimg.com/market/images/FrKaaJo5qBDdRBacQP64ACvYvGKM.png",
+        "cover_vertical": "https://img-tc.tapimg.com/market/images/Fg8ZbI4Lpy9DGQZrNrRm3xKG41Je.png",
+        "publish_intl": false
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:07.822Z",
+      "stage": "submit_spark_response",
+      "data": {
+        "app_id": 865053,
+        "app_title": "五秒真男人",
+        "category": "action",
+        "category_label": "动作",
+        "display_app_title": "动作游戏合集"
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:07.822Z",
+      "stage": "update_project_app_id",
+      "data": {
+        "stage": "start",
+        "project_id": "p_or7d",
+        "app_id": 865053
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:07.973Z",
+      "stage": "update_project_app_id",
+      "data": {
+        "stage": "success",
+        "project_id": "p_or7d",
+        "app_id": 865053
+      }
+    },
+    {
+      "time": "2026-06-01T05:28:07.973Z",
+      "stage": "publish_result",
+      "data": {
+        "action": "updated",
+        "status": "pending_review",
+        "game_id": 865053,
+        "message": "成功更新游戏 \"五秒真男人\"",
+        "developer_id": 410748,
+        "config_file_path": "/userspaces/c8ba0d7d-9f39-4ee4-b1d9-25563986661d/workspace/.project/project.json"
+      }
+    }
+  ]
+}

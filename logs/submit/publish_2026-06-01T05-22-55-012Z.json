@@ -1,0 +1,59 @@
+{
+  "startTime": "2026-06-01T05:22:55.012Z",
+  "endTime": "2026-06-01T05:23:10.980Z",
+  "duration": "15968ms",
+  "result": {
+    "success": false,
+    "error": "配置的开发者 ID 409128 不可用。\n\n请重新运行发布命令，系统会列出当前可用的开发者。"
+  },
+  "steps": [
+    {
+      "time": "2026-06-01T05:22:55.169Z",
+      "stage": "upload_to_cdn",
+      "data": {
+        "status": "start"
+      }
+    },
+    {
+      "time": "2026-06-01T05:23:10.608Z",
+      "stage": "upload_to_cdn",
+      "data": {
+        "status": "done"
+      }
+    },
+    {
+      "time": "2026-06-01T05:23:10.608Z",
+      "stage": "network_config",
+      "data": {
+        "env": "production"
+      }
+    },
+    {
+      "time": "2026-06-01T05:23:10.614Z",
+      "stage": "load_config",
+      "data": {
+        "projectId": "p_or7d",
+        "configPath": "/userspaces/c8ba0d7d-9f39-4ee4-b1d9-25563986661d/workspace/.project/project.json",
+        "taptap_publish": {
+          "title": "五秒真男人",
+          "description": "五秒倒计时的紧张卡牌动作游戏！在五感逐渐被剥夺的绝望中，用元素卡牌组合出最强一击，击败Boss通关！",
+          "category": "action",
+          "screen_orientation": "landscape",
+          "collection_type": "sce",
+          "trial_note": "修复运行时崩溃，优化编辑器体验",
+          "app_platforms": "1,2",
+          "developer_id": 409128
+        },
+        "assets": {
+          "icon": "./game_material/ICON_2026-05-31T05-23-13_01.png",
+          "screenshots": [
+            "./game_material/SCREENSHOT_2026-05-31T05-24-54_01.png",
+            "./game_material/SCREENSHOT_2026-05-31T05-24-54_02.png",
+            "./game_material/SCREENSHOT_2026-05-31T05-24-54_03.jpg"
+          ],
+          "promotional_image": "./game_material/PROMO_2026-05-31T05-26-25_01.jpg"
+        }
+      }
+    }
+  ]
+}
