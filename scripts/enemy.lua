@@ -762,6 +762,7 @@ function Enemy:_isBlockedByAlly(dir)
 end
 
 -- 将世界坐标转换为屏幕坐标，更新血条位置
+-- 修复：使用 ui.root 尺寸而非 graphics 尺寸，解决手机端 DPR>1 时血条位置偏移
 function Enemy:_updateHpBar()
     if self.hpBarContainer == nil or self.camera == nil then return end
 
@@ -772,8 +773,11 @@ function Enemy:_updateHpBar()
 
     local screenPos = self.camera:WorldToScreenPoint(headPos)
     local barW = self.hpBarWidth or 60
-    local screenX = screenPos.x * graphics.width - barW / 2  -- 居中偏移
-    local screenY = screenPos.y * graphics.height
+    -- 使用 ui.root 尺寸（UI坐标空间），而非 graphics 尺寸（物理像素空间）
+    local uiW = ui.root.width
+    local uiH = ui.root.height
+    local screenX = screenPos.x * uiW - barW / 2  -- 居中偏移
+    local screenY = screenPos.y * uiH
 
     self.hpBarContainer:SetPosition(screenX, screenY)
 
@@ -801,6 +805,7 @@ function Enemy:takeDamage(amount, sourceX)
 end
 
 -- 伤害飘字效果
+-- 修复：使用 ui.root 尺寸而非 graphics 尺寸，解决手机端 DPR>1 时飘字不显示
 function Enemy:_showDamageFloat(damage)
     local uiRoot = ui.root
 
@@ -812,12 +817,14 @@ function Enemy:_showDamageFloat(damage)
     floatText.color = Color(1.0, 1.0, 0.0, 1.0)
     floatText.priority = 100
 
-    -- 在敌人头顶位置显示
+    -- 在敌人头顶位置显示（使用 ui.root 坐标空间）
     if self.node and self.camera then
         local headPos = Vector3(self.node.position.x, self.node.position.y + 1.0, self.node.position.z)
         local screenPos = self.camera:WorldToScreenPoint(headPos)
-        local sx = screenPos.x * graphics.width - 10
-        local sy = screenPos.y * graphics.height - 20
+        local uiW = uiRoot.width
+        local uiH = uiRoot.height
+        local sx = screenPos.x * uiW - 10
+        local sy = screenPos.y * uiH - 20
         floatText:SetPosition(sx, sy)
     end
 

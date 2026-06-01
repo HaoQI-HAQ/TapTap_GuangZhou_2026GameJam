@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global
 -- GameUI 类
 local ScreenUtils = require("scripts/screen_utils")
 
@@ -171,6 +172,8 @@ function GameUI:_createJumpButton()
         jumpImg.color = Color(1.0, 1.0, 1.0, 0.9)
     end
 
+    self.jumpContainer = jumpContainer
+
     SubscribeToEvent(self.btnJump, "Pressed", "HandleUIJumpPressed")
     SubscribeToEvent(self.btnJump, "Released", "HandleUIJumpReleased")
 end
@@ -206,6 +209,8 @@ function GameUI:_createAttackButton()
         atkImg:SetImageRect(IntRect(0, 0, atkTex:GetWidth(), atkTex:GetHeight()))
         atkImg.color = Color(1.0, 1.0, 1.0, 0.9)
     end
+
+    self.attackContainer = attackContainer
 
     SubscribeToEvent(self.btnAttack, "Pressed", "HandleUIAttackPressed")
     SubscribeToEvent(self.btnAttack, "Released", "HandleUIAttackReleased")
@@ -311,15 +316,101 @@ function GameUI:hide()
     end
 end
 
--- 辅助：判断触摸的UI元素是否属于摇杆容器
-function GameUI:_isTouchOnJoystick(touchedElem)
-    if not touchedElem or not self.joystickContainer then return false end
+-- 辅助：判断触摸的UI元素是否属于指定容器
+function GameUI:_isTouchOnElement(touchedElem, container)
+    if not touchedElem or not container then return false end
     local elem = touchedElem
     while elem do
-        if elem == self.joystickContainer then return true end
+        if elem == container then return true end
         elem = elem.parent
     end
     return false
+end
+
+-- 辅助：判断触摸的UI元素是否属于摇杆容器
+function GameUI:_isTouchOnJoystick(touchedElem)
+    return self:_isTouchOnElement(touchedElem, self.joystickContainer)
+end
+
+-- 多点触控按钮检测（每帧调用）- 解决摇杆占用首触摸点后其他按钮无响应
+function GameUI:_updateTouchButtons()
+    local numTouches = input.numTouches
+    if numTouches <= 0 then
+        if self._touchJumpActive then
+            self._touchJumpActive = false
+            self.inputManager:setTouchAction(InputManager.ACTION_JUMP, false)
+        end
+        if self._touchAttackActive then
+            self._touchAttackActive = false
+            self.inputManager:setTouchAction(InputManager.ACTION_ATTACK, false)
+        end
+        return
+    end
+
+    local jumpTouched = false
+    local attackTouched = false
+
+    for i = 0, numTouches - 1 do
+        local touch = input:GetTouch(i)
+        if touch and touch.touchedElement then
+            if self.btnJump and self:_isTouchOnElement(touch.touchedElement, self.jumpContainer) then
+                jumpTouched = true
+            end
+            if self.btnAttack and self:_isTouchOnElement(touch.touchedElement, self.attackContainer) then
+                attackTouched = true
+            end
+            -- 卡牌按钮（通过全局 cardUI 引用）
+            if G and G.cardUI and G.cardUI.container then
+                if self:_isTouchOnElement(touch.touchedElement, G.cardUI.container) then
+                    for ci = 1, 5 do
+                        local slot = G.cardUI.cardSlots and G.cardUI.cardSlots[ci]
+                        if slot and slot.btn and self:_isTouchOnElement(touch.touchedElement, slot.btn) then
+                            if not self._touchCardActive then
+                                self._touchCardActive = ci
+                                local idx = G.cardUI:getHandIndex(ci)
+                                if idx and G.cardSystem then
+                                    G.cardSystem:useCard(idx)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- 跳跃按钮
+    if jumpTouched and not self._touchJumpActive then
+        self._touchJumpActive = true
+        self.inputManager:setTouchAction(InputManager.ACTION_JUMP, true)
+    elseif not jumpTouched and self._touchJumpActive then
+        self._touchJumpActive = false
+        self.inputManager:setTouchAction(InputManager.ACTION_JUMP, false)
+    end
+
+    -- 攻击按钮
+    if attackTouched and not self._touchAttackActive then
+        self._touchAttackActive = true
+        self.inputManager:setTouchAction(InputManager.ACTION_ATTACK, true)
+    elseif not attackTouched and self._touchAttackActive then
+        self._touchAttackActive = false
+        self.inputManager:setTouchAction(InputManager.ACTION_ATTACK, false)
+    end
+
+    -- 卡牌释放检测
+    local cardTouching = false
+    for i = 0, numTouches - 1 do
+        local touch = input:GetTouch(i)
+        if touch and touch.touchedElement and G and G.cardUI and G.cardUI.container then
+            if self:_isTouchOnElement(touch.touchedElement, G.cardUI.container) then
+                cardTouching = true
+                break
+            end
+        end
+    end
+    if not cardTouching then
+        self._touchCardActive = nil
+    end
 end
 
 -- 摇杆输入处理（每帧调用）- 支持多点触控
@@ -445,6 +536,8 @@ end
 function GameUI:update(dt)
     -- 更新摇杆
     self:_updateJoystick()
+    -- 多点触控按钮检测（解决摇杆占用首触摸点后其他按钮无响应）
+    self:_updateTouchButtons()
 
     -- 更新血量
     local currentHp = self.player:getHp()

@@ -1,11 +1,11 @@
 {
   "$schema": "../schemas/project.schema.json",
-  "project_id": "p_rx5c",
+  "project_id": "p_or7d",
   "author": {
     "id": "1833861402"
   },
   "entry": "main.lua",
-  "version": "1.0.10",
+  "version": "1.0.12",
   "taptap_publish": {
     "app_id": 865053,
     "title": "五秒真男人",
@@ -19,7 +19,7 @@
     "miniapp_id": "tapmcu0nsbnosl26oh"
   },
   "assets": {
-    "icon": "./game_material/ICON_2026-05-31T05-23-13_01.png",
+    "icon": "./assets/image/game_icon_v5_20260601131851.png",
     "screenshots": [
       "./game_material/SCREENSHOT_2026-05-31T05-24-54_01.png",
       "./game_material/SCREENSHOT_2026-05-31T05-24-54_02.png",
@@ -29,10 +29,11 @@
     "cover_horizontal": "./.project/game_material/COVER_HORIZONTAL_2026-06-01T05-23-42_01.png",
     "cover_horizontal_url": "https://tapcode-sce.spark.xd.com/assets/game_material/五秒真男人/COVER_HORIZONTAL_2026-06-01T05-23-42_01.png",
     "cover_vertical": "./.project/game_material/COVER_VERTICAL_2026-06-01T05-23-42_01.png",
-    "cover_vertical_url": "https://tapcode-sce.spark.xd.com/assets/game_material/五秒真男人/COVER_VERTICAL_2026-06-01T05-23-42_01.png"
+    "cover_vertical_url": "https://tapcode-sce.spark.xd.com/assets/game_material/五秒真男人/COVER_VERTICAL_2026-06-01T05-23-42_01.png",
+    "icon_url": "https://tapcode-sce.spark.xd.com/assets/game_material/p_or7d/game_icon_v5_20260601131851.png"
   },
   "metadata": {
-    "updated_at": "2026-06-01T05:26:27.324Z",
+    "updated_at": "2026-06-01T14:39:14.349Z",
     "promo_dependent_hash": "4236d1746a8b2bd5bd2146cf52dd8666"
   }
 }
