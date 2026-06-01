@@ -253,10 +253,10 @@ function Player:update(dt)
         if stompedEnemy then
             self:_slamLand(true)
         else
-            -- 中心射线检测地面
+            -- 中心射线检测地面（只检测地面层，排除敌人）
             local pos = self.node.position
             local centerHit = self.physicsWorld:RaycastSingle(
-                Vector2(pos.x, pos.y - 1.0), Vector2(pos.x, pos.y - 1.2))
+                Vector2(pos.x, pos.y - 1.0), Vector2(pos.x, pos.y - 1.2), 1)
             local centerOnGround = (centerHit.body ~= nil and centerHit.body ~= self.body)
 
             if centerOnGround then
@@ -271,10 +271,10 @@ function Player:update(dt)
                     -- 被边缘阻挡，检测哪侧有平台，向反方向滑开
                     local leftHit = self.physicsWorld:RaycastSingle(
                         Vector2(pos.x - 0.3, pos.y - 0.8),
-                        Vector2(pos.x - 0.3, pos.y - 1.2))
+                        Vector2(pos.x - 0.3, pos.y - 1.2), 1)
                     local rightHit = self.physicsWorld:RaycastSingle(
                         Vector2(pos.x + 0.3, pos.y - 0.8),
-                        Vector2(pos.x + 0.3, pos.y - 1.2))
+                        Vector2(pos.x + 0.3, pos.y - 1.2), 1)
                     local leftSolid = (leftHit.body ~= nil and leftHit.body ~= self.body)
                     local rightSolid = (rightHit.body ~= nil and rightHit.body ~= self.body)
 
@@ -851,7 +851,8 @@ function Player:_checkGrounded()
     local startPoint = Vector2(pos.x, pos.y - 1.0)
     local endPoint = Vector2(pos.x, pos.y - 1.1)
 
-    local result = self.physicsWorld:RaycastSingle(startPoint, endPoint)
+    -- collisionMask=1 只检测地面(CATEGORY_GROUND)，忽略敌人(4)防止踩怪弹跳叠加
+    local result = self.physicsWorld:RaycastSingle(startPoint, endPoint, 1)
     if result.body ~= nil and result.body ~= self.body then
         return true
     end
@@ -872,7 +873,7 @@ function Player:_getGroundSupport()
         local xOff = -halfW + (halfW * 2) * i / (rays - 1)
         local startP = Vector2(pos.x + xOff, rayY)
         local endP = Vector2(pos.x + xOff, rayEndY)
-        local result = self.physicsWorld:RaycastSingle(startP, endP)
+        local result = self.physicsWorld:RaycastSingle(startP, endP, 1)
         if result.body ~= nil and result.body ~= self.body then
             hits = hits + 1
         end

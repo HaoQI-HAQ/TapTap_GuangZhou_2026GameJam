@@ -220,7 +220,7 @@ function M.InitGameObjects()
     end
     G.levelManager.onGameComplete = function()
         G.portalUI:showGameComplete()
-        M._scheduleReturnToMenu(3.0)
+        M.ShowVictory()
     end
 
     -- 标记关卡就绪，允许Boss击杀检测
@@ -383,6 +383,10 @@ function M.gameUpdate(dt)
     if G.gamePaused then return end
     if not G.player then return end
 
+    -- Game Over / Victory CG 动画（不受暂停影响，在玩家死后持续播放）
+    M.UpdateGameOverAnim(dt)
+    M.UpdateVictoryAnim(dt)
+
     G.inputManager:update()
     G.player:update(dt)
     for _, e in ipairs(G.enemies) do e:update(dt) end
@@ -457,6 +461,7 @@ function M.OnLoadingComplete()
     G.inputManager = InputManager:new()
     G.menuOverlay = MenuOverlay:new()
     M._createGameOverUI()
+    M._createVictoryUI()
     M._createPauseUI()
     M._createGMButton()
 
@@ -613,6 +618,14 @@ function M.registerGlobalCallbacks()
     function HandleRestart(eventType, eventData)
         M.HandleRestart(eventType, eventData)
     end
+
+    function HandleVictoryMenu(eventType, eventData)
+        M.HandleVictoryMenu(eventType, eventData)
+    end
+
+    function HandleVictoryRestart(eventType, eventData)
+        M.HandleVictoryRestart(eventType, eventData)
+    end
 end
 
 -- ============================================================================
@@ -736,10 +749,8 @@ function M._createGameOverUI()
 
     -- Game Over 背景图列表（每次死亡随机选一张）
     G.gameOverBGs = {
-        "image/UI/DieBK/cg_gameover_A.png",
-        "image/UI/DieBK/cg_game_over_v2.png",
-        "image/UI/DieBK/cg_gameover_C.png",
-        "image/UI/DieBK/cg_gameover_H.png",
+        "image/cg_gameover_G_20260531032355.png",
+        "image/cg_gameover_F_20260531032401.png",
     }
 
     G.gameOverContainer = UIElement:new()
@@ -749,14 +760,25 @@ function M._createGameOverUI()
     G.gameOverContainer:SetPosition(0, 0)
     G.gameOverContainer.priority = 900
 
-    -- 背景图（BorderImage 铺满全屏）
+    -- 全黑背景遮罩（黑屏阶段用，始终在最底层）
+    local blackBg = BorderImage:new()
+    G.gameOverContainer:AddChild(blackBg)
+    blackBg:SetStyleAuto()
+    blackBg:SetSize(sw, sh)
+    blackBg:SetPosition(0, 0)
+    blackBg:SetAlignment(HA_LEFT, VA_TOP)
+    blackBg.color = Color(0, 0, 0, 1.0)
+    blackBg.opacity = 1.0
+    blackBg.priority = -2
+
+    -- CG背景图（BorderImage，在黑屏之上）
     G.gameOverBgSprite = BorderImage:new()
     G.gameOverContainer:AddChild(G.gameOverBgSprite)
     G.gameOverBgSprite:SetSize(sw, sh)
     G.gameOverBgSprite:SetPosition(0, 0)
     G.gameOverBgSprite:SetAlignment(HA_LEFT, VA_TOP)
-    G.gameOverBgSprite.priority = -1
-    G.gameOverBgSprite.opacity = 0.9
+    G.gameOverBgSprite.priority = 0
+    G.gameOverBgSprite.opacity = 0.0
     G.gameOverBgSprite.blendMode = BLEND_ALPHA
     -- 预加载第一张纹理避免空白
     local preTex = cache:GetResource("Texture2D", G.gameOverBGs[1])
@@ -765,31 +787,209 @@ function M._createGameOverUI()
         G.gameOverBgSprite:SetImageRect(IntRect(0, 0, preTex:GetWidth(), preTex:GetHeight()))
     end
 
-    -- 半透明黑色遮罩（让文字更清晰）
-    local overlay = BorderImage:new()
-    G.gameOverContainer:AddChild(overlay)
-    overlay:SetSize(sw, sh)
-    overlay:SetPosition(0, 0)
-    overlay:SetAlignment(HA_LEFT, VA_TOP)
-    overlay.color = Color(0, 0, 0, 0.3)
-
-    local restartBtn = Button:new()
-    G.gameOverContainer:AddChild(restartBtn)
-    restartBtn:SetStyleAuto()
-    restartBtn:SetSize(S(160), S(50))
-    restartBtn:SetAlignment(HA_CENTER, VA_CENTER)
-    restartBtn:SetPosition(0, S(40))
+    G.gameOverRestartBtn = Button:new()
+    G.gameOverContainer:AddChild(G.gameOverRestartBtn)
+    G.gameOverRestartBtn:SetStyleAuto()
+    G.gameOverRestartBtn:SetSize(S(160), S(50))
+    G.gameOverRestartBtn:SetAlignment(HA_CENTER, VA_CENTER)
+    G.gameOverRestartBtn:SetPosition(0, S(40))
 
     local btnText = Text:new()
-    restartBtn:AddChild(btnText)
+    G.gameOverRestartBtn:AddChild(btnText)
     btnText:SetStyleAuto()
     btnText.text = "返回菜单"
     btnText:SetFontSize(S(22))
     btnText:SetAlignment(HA_CENTER, VA_CENTER)
 
-    SubscribeToEvent(restartBtn, "Released", "HandleRestart")
+    SubscribeToEvent(G.gameOverRestartBtn, "Released", "HandleRestart")
 
+    -- 初始隐藏重启按钮（等CG淡入完成后再显示）
+    G.gameOverRestartBtn.visible = false
     G.gameOverContainer.visible = false
+end
+
+-- ============================================================================
+-- Victory UI（Boss击败胜利CG）
+-- ============================================================================
+function M._createVictoryUI()
+    local uiRoot = ui.root
+    local S = ScreenUtils.s
+    local sw = ScreenUtils.width()
+    local sh = ScreenUtils.height()
+
+    G.victoryContainer = UIElement:new()
+    uiRoot:AddChild(G.victoryContainer)
+    G.victoryContainer:SetSize(sw, sh)
+    G.victoryContainer:SetAlignment(HA_LEFT, VA_TOP)
+    G.victoryContainer:SetPosition(0, 0)
+    G.victoryContainer.priority = 910
+
+    -- 全黑背景
+    local blackBg = BorderImage:new()
+    G.victoryContainer:AddChild(blackBg)
+    blackBg:SetStyleAuto()
+    blackBg:SetSize(sw, sh)
+    blackBg:SetPosition(0, 0)
+    blackBg:SetAlignment(HA_LEFT, VA_TOP)
+    blackBg.color = Color(0, 0, 0, 1.0)
+    blackBg.opacity = 1.0
+    blackBg.priority = -2
+
+    -- 胜利CG图
+    G.victoryBgSprite = BorderImage:new()
+    G.victoryContainer:AddChild(G.victoryBgSprite)
+    G.victoryBgSprite:SetSize(sw, sh)
+    G.victoryBgSprite:SetPosition(0, 0)
+    G.victoryBgSprite:SetAlignment(HA_LEFT, VA_TOP)
+    G.victoryBgSprite.priority = 0
+    G.victoryBgSprite.opacity = 0.0
+    G.victoryBgSprite.blendMode = BLEND_ALPHA
+    local victoryTex = cache:GetResource("Texture2D", "image/edited_victory_boss_killed_clean_20260601152842.png")
+    if victoryTex then
+        G.victoryBgSprite:SetTexture(victoryTex)
+        G.victoryBgSprite:SetImageRect(IntRect(0, 0, victoryTex:GetWidth(), victoryTex:GetHeight()))
+    end
+
+    -- 返回主菜单按钮（左边中间）
+    G.victoryMenuBtn = Button:new()
+    G.victoryContainer:AddChild(G.victoryMenuBtn)
+    G.victoryMenuBtn:SetStyleAuto()
+    G.victoryMenuBtn:SetSize(S(160), S(50))
+    G.victoryMenuBtn:SetAlignment(HA_LEFT, VA_CENTER)
+    G.victoryMenuBtn:SetPosition(S(60), 0)
+    G.victoryMenuBtn.priority = 10
+
+    local menuBtnText = Text:new()
+    G.victoryMenuBtn:AddChild(menuBtnText)
+    menuBtnText:SetStyleAuto()
+    menuBtnText.text = "回主菜单"
+    menuBtnText:SetFontSize(S(20))
+    menuBtnText:SetAlignment(HA_CENTER, VA_CENTER)
+
+    SubscribeToEvent(G.victoryMenuBtn, "Released", "HandleVictoryMenu")
+
+    -- 重开按钮（右边中间）
+    G.victoryRestartBtn = Button:new()
+    G.victoryContainer:AddChild(G.victoryRestartBtn)
+    G.victoryRestartBtn:SetStyleAuto()
+    G.victoryRestartBtn:SetSize(S(160), S(50))
+    G.victoryRestartBtn:SetAlignment(HA_RIGHT, VA_CENTER)
+    G.victoryRestartBtn:SetPosition(S(-60), 0)
+    G.victoryRestartBtn.priority = 10
+
+    local restartBtnText = Text:new()
+    G.victoryRestartBtn:AddChild(restartBtnText)
+    restartBtnText:SetStyleAuto()
+    restartBtnText.text = "重新开始"
+    restartBtnText:SetFontSize(S(20))
+    restartBtnText:SetAlignment(HA_CENTER, VA_CENTER)
+
+    SubscribeToEvent(G.victoryRestartBtn, "Released", "HandleVictoryRestart")
+
+    -- 初始隐藏
+    G.victoryMenuBtn.visible = false
+    G.victoryRestartBtn.visible = false
+    G.victoryContainer.visible = false
+end
+
+function M.ShowVictory()
+    if G.victoryContainer then
+        if G.victoryContainer.visible then return end
+
+        local sw = ScreenUtils.width()
+        local sh = ScreenUtils.height()
+        G.victoryContainer:SetSize(sw, sh)
+
+        -- 重新加载胜利CG纹理（确保纹理可用）
+        if G.victoryBgSprite then
+            local tex = cache:GetResource("Texture2D", "image/edited_victory_boss_killed_clean_20260601152842.png")
+            if tex then
+                G.victoryBgSprite:SetTexture(tex)
+                G.victoryBgSprite:SetImageRect(IntRect(0, 0, tex:GetWidth(), tex:GetHeight()))
+            end
+        end
+
+        -- 初始状态：黑屏，CG隐藏
+        G.victoryBgSprite.opacity = 0.0
+        G.victoryBgSprite:SetSize(0, 0)
+        G.victoryContainer.visible = true
+
+        -- 启动胜利动画状态机
+        G.victoryPhase = "blackscreen"
+        G.victoryTimer = 0.0
+    end
+    G.physicsWorld_.enabled = false
+    G.gamePaused = false
+    if G.pausePanel then G.pausePanel.visible = false end
+    G.gameUI:hide()
+    G.cardUI:hide()
+    for _, e in ipairs(G.enemies) do
+        e:hideHpBar()
+    end
+end
+
+-- Victory CG 动画更新（每帧调用）
+local VICTORY_BLACK_DURATION = 2.0    -- 黑屏持续秒数（Boss击败后较短）
+local VICTORY_FADEIN_DURATION = 1.5   -- CG淡入持续秒数
+
+function M.UpdateVictoryAnim(dt)
+    if not G.victoryPhase then return end
+
+    G.victoryTimer = G.victoryTimer + dt
+
+    if G.victoryPhase == "blackscreen" then
+        if G.victoryTimer >= VICTORY_BLACK_DURATION then
+            G.victoryPhase = "fadein"
+            G.victoryTimer = 0.0
+        end
+    elseif G.victoryPhase == "fadein" then
+        local progress = math.min(G.victoryTimer / VICTORY_FADEIN_DURATION, 1.0)
+        local eased = 1.0 - (1.0 - progress) * (1.0 - progress)
+
+        local sw = ScreenUtils.width()
+        local sh = ScreenUtils.height()
+
+        -- 从 60% 缩放到 100%
+        local scale = 0.6 + 0.4 * eased
+        local imgW = math.floor(sw * scale)
+        local imgH = math.floor(sh * scale)
+        local posX = math.floor((sw - imgW) / 2)
+        local posY = math.floor((sh - imgH) / 2)
+
+        G.victoryBgSprite:SetSize(imgW, imgH)
+        G.victoryBgSprite:SetPosition(posX, posY)
+        G.victoryBgSprite.opacity = eased
+
+        if progress >= 1.0 then
+            G.victoryPhase = "done"
+            -- 确保最终全屏覆盖
+            G.victoryBgSprite:SetSize(sw, sh)
+            G.victoryBgSprite:SetPosition(0, 0)
+            G.victoryBgSprite.opacity = 1.0
+            -- 显示按钮
+            if G.victoryMenuBtn then G.victoryMenuBtn.visible = true end
+            if G.victoryRestartBtn then G.victoryRestartBtn.visible = true end
+        end
+    end
+end
+
+function M.HandleVictoryMenu(eventType, eventData)
+    G.victoryPhase = nil
+    G.victoryTimer = nil
+    if G.victoryMenuBtn then G.victoryMenuBtn.visible = false end
+    if G.victoryRestartBtn then G.victoryRestartBtn.visible = false end
+    if G.victoryContainer then G.victoryContainer.visible = false end
+    M.ReturnToMenu()
+end
+
+function M.HandleVictoryRestart(eventType, eventData)
+    G.victoryPhase = nil
+    G.victoryTimer = nil
+    if G.victoryMenuBtn then G.victoryMenuBtn.visible = false end
+    if G.victoryRestartBtn then G.victoryRestartBtn.visible = false end
+    if G.victoryContainer then G.victoryContainer.visible = false end
+    -- 重新开始游戏（从第一关）
+    M.HandleRestart(eventType, eventData)
 end
 
 function M.ShowGameOver()
@@ -807,12 +1007,18 @@ function M.ShowGameOver()
             local tex = cache:GetResource("Texture2D", G.gameOverBGs[idx])
             if tex then
                 G.gameOverBgSprite:SetTexture(tex)
-                G.gameOverBgSprite:SetSize(sw, sh)
                 G.gameOverBgSprite:SetImageRect(IntRect(0, 0, tex:GetWidth(), tex:GetHeight()))
             end
         end
 
+        -- 初始状态：黑屏，CG图隐藏（缩小+透明）
+        G.gameOverBgSprite.opacity = 0.0
+        G.gameOverBgSprite:SetSize(0, 0)
         G.gameOverContainer.visible = true
+
+        -- 启动Game Over动画状态机
+        G.gameOverPhase = "blackscreen"  -- 先黑屏
+        G.gameOverTimer = 0.0
     end
     G.physicsWorld_.enabled = false
     G.gamePaused = false
@@ -824,7 +1030,60 @@ function M.ShowGameOver()
     end
 end
 
+-- Game Over CG 动画更新（每帧调用）
+local GAMEOVER_BLACK_DURATION = 3.5   -- 黑屏持续秒数
+local GAMEOVER_FADEIN_DURATION = 1.5  -- CG淡入持续秒数
+
+function M.UpdateGameOverAnim(dt)
+    if not G.gameOverPhase then return end
+
+    G.gameOverTimer = G.gameOverTimer + dt
+
+    if G.gameOverPhase == "blackscreen" then
+        -- 黑屏阶段：等待3.5秒
+        if G.gameOverTimer >= GAMEOVER_BLACK_DURATION then
+            G.gameOverPhase = "fadein"
+            G.gameOverTimer = 0.0
+        end
+    elseif G.gameOverPhase == "fadein" then
+        -- 淡入阶段：CG从中间缩放+透明度渐现
+        local progress = math.min(G.gameOverTimer / GAMEOVER_FADEIN_DURATION, 1.0)
+        -- 使用 ease-out 缓动（让开始快结尾慢更自然）
+        local eased = 1.0 - (1.0 - progress) * (1.0 - progress)
+
+        local sw = ScreenUtils.width()
+        local sh = ScreenUtils.height()
+
+        -- 从 60% 缩放到 100%
+        local scale = 0.6 + 0.4 * eased
+        local imgW = math.floor(sw * scale)
+        local imgH = math.floor(sh * scale)
+        local posX = math.floor((sw - imgW) / 2)
+        local posY = math.floor((sh - imgH) / 2)
+
+        G.gameOverBgSprite:SetSize(imgW, imgH)
+        G.gameOverBgSprite:SetPosition(posX, posY)
+        G.gameOverBgSprite.opacity = eased
+
+        if progress >= 1.0 then
+            G.gameOverPhase = "done"
+            -- 确保最终全屏覆盖
+            G.gameOverBgSprite:SetSize(sw, sh)
+            G.gameOverBgSprite:SetPosition(0, 0)
+            G.gameOverBgSprite.opacity = 1.0
+            -- CG淡入完成，显示返回菜单按钮
+            if G.gameOverRestartBtn then
+                G.gameOverRestartBtn.visible = true
+            end
+        end
+    end
+end
+
 function M.HandleRestart(eventType, eventData)
+    -- 重置Game Over动画状态
+    G.gameOverPhase = nil
+    G.gameOverTimer = nil
+    if G.gameOverRestartBtn then G.gameOverRestartBtn.visible = false end
     if G.gameOverContainer then G.gameOverContainer.visible = false end
     if G.sensesSystem then G.sensesSystem:destroy(); G.sensesSystem = nil end
     if G.gameUI then G.gameUI:destroy(); G.gameUI = nil end
