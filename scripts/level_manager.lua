@@ -122,6 +122,7 @@ function LevelManager:new()
     self.onEnemiesNotCleared = nil  -- function() 到达传送点但敌人未全清
     self.onGameComplete = nil  -- function() 击败最终Boss，游戏通关
     self.gameCompleted = false
+    self.levelReady = true  -- 关卡是否已就绪（过渡期间为false，防止误判通关）
     return self
 end
 
@@ -297,6 +298,8 @@ end
 function LevelManager:update(dt, playerPos, enemies)
     -- 第五关（Boss战）：无传送门，击败Boss即通关
     if self.currentLevel >= self.maxLevel and not self.gameCompleted then
+        -- levelReady 为 false 时表示正在过渡，不做检测
+        if not self.levelReady then return end
         if #enemies > 0 and self:checkAllEnemiesDefeated(enemies) then
             self.gameCompleted = true
             log:Write(LOG_INFO, "[LevelManager] Final Boss defeated! Game Complete!")
@@ -396,6 +399,7 @@ function LevelManager:_completeTransition()
 
     log:Write(LOG_INFO, "[LevelManager] Teleporting to level " .. nextLevel)
     self.currentLevel = nextLevel
+    self.levelReady = false  -- 过渡期间标记为未就绪，防止旧敌人列表误触发通关
 
     if self.onTeleportComplete then
         self.onTeleportComplete(nextLevel)

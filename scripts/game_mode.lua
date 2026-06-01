@@ -223,6 +223,9 @@ function M.InitGameObjects()
         M._scheduleReturnToMenu(3.0)
     end
 
+    -- 标记关卡就绪，允许Boss击杀检测
+    G.levelManager.levelReady = true
+
     log:Write(LOG_INFO, "[Game] Game objects initialized for mode: " .. (G.currentMode or "unknown") .. " Level: " .. G.levelManager:getCurrentLevel())
 end
 
