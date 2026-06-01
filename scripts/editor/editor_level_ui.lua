@@ -830,7 +830,7 @@ function M.mixin(cls)
     -- ========================================================================
 
     function cls:_returnToGame()
-        local ok, EditorMode = pcall(require, "editor_mode")
+        local ok, EditorMode = pcall(require, "scripts/editor_mode")
         if ok and EditorMode and EditorMode.switchToGame then
             EditorMode.switchToGame()
         end

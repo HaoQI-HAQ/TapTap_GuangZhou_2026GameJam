@@ -118,13 +118,15 @@ function M.show()
     end
 
     -- 冻结游戏
-    G.physicsWorld_.enabled = false
+    if G.physicsWorld_ then G.physicsWorld_.enabled = false end
     G.gamePaused = false
     if G.pausePanel then G.pausePanel.visible = false end
-    G.gameUI:hide()
-    G.cardUI:hide()
-    for _, e in ipairs(G.enemies) do
-        e:hideHpBar()
+    if G.gameUI then G.gameUI:hide() end
+    if G.cardUI then G.cardUI:hide() end
+    if G.enemies then
+        for _, e in ipairs(G.enemies) do
+            e:hideHpBar()
+        end
     end
 end
 
