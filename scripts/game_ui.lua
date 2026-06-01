@@ -325,16 +325,43 @@ function GameUI:hide()
     end
 end
 
+-- 辅助：判断触摸的UI元素是否属于摇杆容器
+function GameUI:_isTouchOnJoystick(touchedElem)
+    if not touchedElem or not self.joystickContainer then return false end
+    local elem = touchedElem
+    while elem do
+        if elem == self.joystickContainer then return true end
+        elem = elem.parent
+    end
+    return false
+end
+
 -- 摇杆输入处理（每帧调用）- 支持多点触控
+-- 修复：在手机端(DPR>1)，touch.position与element.screenPosition可能不在同一坐标空间
 function GameUI:_updateJoystick()
     if not self.joystickContainer or not self.joystickContainer.visible then
         return
     end
 
-    -- 获取摇杆容器的屏幕中心位置
+    -- 使用实际容器尺寸（编辑器布局可能修改了大小）
+    local actualSize = self.joystickContainer.size
+    local joystickW = actualSize.x > 0 and actualSize.x or self.joystickSize
+    local joystickH = actualSize.y > 0 and actualSize.y or self.joystickSize
+
+    -- 获取摇杆容器的屏幕中心位置（在 ui.root 坐标空间）
     local containerPos = self.joystickContainer.screenPosition
-    local cx = containerPos.x + self.joystickSize / 2
-    local cy = containerPos.y + self.joystickSize / 2
+    local cx = containerPos.x + joystickW / 2
+    local cy = containerPos.y + joystickH / 2
+    local hitRadius = joystickW / 2
+
+    -- 坐标空间修正：touch.position 在 graphics 像素空间，screenPosition 在 ui.root 空间
+    -- 当 ui.root 尺寸与 graphics 尺寸不同时（手机端DPR），需要缩放
+    local gfxW = graphics:GetWidth()
+    local gfxH = graphics:GetHeight()
+    local uiW = ui.root.width
+    local uiH = ui.root.height
+    local scaleX = (gfxW > 0 and uiW > 0) and (uiW / gfxW) or 1.0
+    local scaleY = (gfxH > 0 and uiH > 0) and (uiH / gfxH) or 1.0
 
     -- 在所有触摸点中找到落在摇杆区域内的那个
     local numTouches = input.numTouches
@@ -345,12 +372,11 @@ function GameUI:_updateJoystick()
         for i = 0, numTouches - 1 do
             local touch = input:GetTouch(i)
             if touch then
-                local tx = touch.position.x
-                local ty = touch.position.y
-                local dx = tx - cx
-                local dy = ty - cy
-                local dist = math.sqrt(dx * dx + dy * dy)
+                -- 将触摸坐标转换到 UI 坐标空间
+                local tx = touch.position.x * scaleX
+                local ty = touch.position.y * scaleY
 
+                -- 继续跟踪已激活的触摸（通过 touchID）
                 if self.joystickActive and self.joystickTouchID == touch.touchID then
                     foundTouch = true
                     touchX = tx
@@ -358,27 +384,42 @@ function GameUI:_updateJoystick()
                     break
                 end
 
-                if not self.joystickActive and dist <= self.joystickSize / 2 then
-                    foundTouch = true
-                    touchX = tx
-                    touchY = ty
-                    self.joystickTouchID = touch.touchID
-                    break
+                -- 新触摸：优先使用 touchedElement 判断（引擎内部坐标映射可靠）
+                if not self.joystickActive then
+                    local onJoystick = self:_isTouchOnJoystick(touch.touchedElement)
+                    -- 备选：距离判断（兼容 touchedElement 为空的情况）
+                    if not onJoystick then
+                        local dx = tx - cx
+                        local dy = ty - cy
+                        local dist = math.sqrt(dx * dx + dy * dy)
+                        if dist <= hitRadius then
+                            onJoystick = true
+                        end
+                    end
+                    if onJoystick then
+                        foundTouch = true
+                        touchX = tx
+                        touchY = ty
+                        self.joystickTouchID = touch.touchID
+                        break
+                    end
                 end
             end
         end
-    else
-        -- 桌面端鼠标兼容
-        if input:GetMouseButtonDown(MOUSEB_LEFT) then
-            local mousePos = input.mousePosition
-            local dx = mousePos.x - cx
-            local dy = mousePos.y - cy
-            local dist = math.sqrt(dx * dx + dy * dy)
-            if self.joystickActive or dist <= self.joystickSize / 2 then
-                foundTouch = true
-                touchX = mousePos.x
-                touchY = mousePos.y
-            end
+    end
+
+    -- 鼠标兼容（桌面端 或 手机端触摸模拟为鼠标）
+    if not foundTouch and input:GetMouseButtonDown(MOUSEB_LEFT) then
+        local mousePos = input.mousePosition
+        local mx = mousePos.x * scaleX
+        local my = mousePos.y * scaleY
+        local dx = mx - cx
+        local dy = my - cy
+        local dist = math.sqrt(dx * dx + dy * dy)
+        if self.joystickActive or dist <= hitRadius then
+            foundTouch = true
+            touchX = mx
+            touchY = my
         end
     end
 
