@@ -79,6 +79,7 @@ function Start()
     SampleStart()
     ScreenUtils.init()
 
+    -- 启动时显示 Loading 预加载基础资源，完成后显示菜单
     G.loadingScene = LoadingScene:new(function()
         GameMode.OnLoadingComplete()
     end)

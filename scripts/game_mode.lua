@@ -307,6 +307,15 @@ end
 -- EnterGame / ReturnToMenu
 -- ============================================================================
 function M.EnterGame(mode)
+    -- 显示 Loading 界面预加载资源，完成后再进入关卡
+    G.loadingScene = LoadingScene:new(function()
+        G.loadingScene = nil
+        M._doEnterGame(mode)
+    end)
+end
+
+--- 实际进入游戏逻辑（Loading 完成后回调）
+function M._doEnterGame(mode)
     M.LoadModeScripts(mode)
 
     if G.levelManager then

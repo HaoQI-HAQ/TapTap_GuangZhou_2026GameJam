@@ -280,6 +280,10 @@ end
 
 --- 销毁UI元素（重新开始前调用）
 function SensesSystem:destroy()
+    -- 恢复音频（防止听觉剥夺状态下死亡后下一局无声）
+    audio:SetMasterGain("Effect", 1.0)
+    audio:SetMasterGain("Music", 1.0)
+
     if self.fadeOverlay then
         self.fadeOverlay:Remove()
         self.fadeOverlay = nil

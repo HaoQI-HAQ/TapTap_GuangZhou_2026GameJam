@@ -563,9 +563,17 @@ function Enemy:update(dt)
     local selfHeight = self.isBoss and 2.4 or 1.2  -- 敌人自身高度
 
     -- 朝向：追逐/攻击时朝向玩家，idle巡逻时朝移动方向
+    -- 死区：玩家水平位置在敌人宽度内时保持当前朝向，防止反复翻转
     local faceDir
     if self.chasing then
-        faceDir = playerPos.x > pos.x and 1 or -1
+        local dx = playerPos.x - pos.x
+        local deadZone = self.isBoss and 0.6 or 0.3  -- 敌人半宽作为死区
+        if math.abs(dx) > deadZone then
+            faceDir = dx > 0 and 1 or -1
+            self.lastFaceDir = faceDir
+        else
+            faceDir = self.lastFaceDir or self.patrolDir or 1
+        end
     else
         faceDir = self.patrolDir
     end

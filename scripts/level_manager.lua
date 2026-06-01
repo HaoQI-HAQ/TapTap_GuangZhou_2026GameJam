@@ -82,14 +82,16 @@ local LEVELS = {
     -- 第五关：Boss战（只有1只Boss，击败通关）
     [5] = {
         name = "最终关 - Boss战",
-        groundWidth = 80.0,
+        groundWidth = 52.0,  -- 右边界26m（平台2右边界18m + 8m）
         platforms = {
-            { x = -3.0, y = 0.5, w = 4.0, h = 0.3 },
-            { x = 5.0, y = 1.0, w = 4.0, h = 0.3 },
+            { x = 0.0, y = 1.5, w = 4.0, h = 0.3 },   -- 左侧高台
+            { x = 16.0, y = 1.5, w = 4.0, h = 0.3 },  -- 右侧高台
         },
-        enemies = "boss_only",  -- 特殊标记：仅Boss
-        bossElement = "random",  -- Boss属性随机
-        -- 无传送门，击败Boss即通关
+        enemies = "boss_only",
+        bossElement = "random",
+        bossList = {
+            { x = 12.0, y = 1.0, element = "random" },  -- Boss在地面中右侧
+        },
         portalX = nil,
         portalY = nil,
     },
@@ -139,14 +141,28 @@ function LevelManager:generateEnemies(level)
     if not cfg then return {} end
 
     if cfg.enemies == "boss_only" then
-        -- Boss战：只生成1只Boss
-        local element = cfg.bossElement
-        if element == "random" then
-            element = ELEMENT_POOL[math.random(1, #ELEMENT_POOL)]
+        -- Boss战：支持多Boss自定义位置
+        if cfg.bossList then
+            -- 使用自定义Boss列表
+            local result = {}
+            for _, b in ipairs(cfg.bossList) do
+                local element = b.element or cfg.bossElement or "random"
+                if element == "random" then
+                    element = ELEMENT_POOL[math.random(1, #ELEMENT_POOL)]
+                end
+                table.insert(result, { x = b.x, y = b.y, element = element, boss = true })
+            end
+            return result
+        else
+            -- 兼容旧配置：默认1只Boss
+            local element = cfg.bossElement
+            if element == "random" then
+                element = ELEMENT_POOL[math.random(1, #ELEMENT_POOL)]
+            end
+            return {
+                { x = 5.0, y = 2.0, element = element, boss = true },
+            }
         end
-        return {
-            { x = 5.0, y = 2.0, element = element, boss = true },
-        }
     elseif cfg.enemies == "random" then
         -- 随机生成敌人
         return self:_generateRandomEnemies(cfg)
@@ -193,14 +209,11 @@ function LevelManager:_generateRandomEnemies(cfg)
         -- 随机属性
         local element = ELEMENT_POOL[math.random(1, #ELEMENT_POOL)]
 
-        -- 最后一个敌人概率变为Boss（30%概率）
-        local isBoss = (i == count) and (math.random() < 0.3)
-
         table.insert(result, {
             x = x,
             y = zone.y,
             element = element,
-            boss = isBoss,
+            boss = false,
         })
     end
 
