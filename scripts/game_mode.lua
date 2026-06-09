@@ -5,6 +5,7 @@
 local ScreenUtils = require("scripts/screen_utils")
 local LevelManager = require("scripts/level_manager")
 local PortalUI = require("scripts/portal_ui")
+local BGM = require("scripts/bgm")
 
 local M = {}
 
@@ -366,6 +367,9 @@ function M.gameUpdate(dt)
     end
     if not G.gameReady then return end
 
+    -- BGM 播完切换下一首（不受暂停/菜单影响）
+    BGM.update()
+
     if G.menuOverlay:isVisible() then return end
 
     if input:GetKeyPress(KEY_TAB) or input:GetKeyPress(KEY_ESCAPE) then
@@ -467,6 +471,10 @@ function M.OnLoadingComplete()
     M._createGMButton()
 
     G.physicsWorld_.enabled = false
+
+    -- 初始化并开始播放背景音乐
+    BGM.init(G.scene_)
+
     log:Write(LOG_INFO, "[Game] Base systems initialized, waiting for mode selection")
 end
 
