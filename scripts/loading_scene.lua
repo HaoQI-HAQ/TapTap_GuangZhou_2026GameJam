@@ -116,17 +116,17 @@ function LoadingScene:_createUI()
     local bg = BorderImage:new()
     self.panel:AddChild(bg)
     bg:SetSize(graphics.width, graphics.height)
-    bg.color = Color(0.05, 0.05, 0.1, 1.0)
+    bg.color = Color(0.059, 0.059, 0.137, 1.0)  -- PX_BG #0F0F23
 
     -- 标题文字
     local title = Text:new()
     self.panel:AddChild(title)
-    title:SetStyleAuto()
+    local pxFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Prop-zh_hans-Bold.ttf")
+    if pxFont then title:SetFont(pxFont, 32) else title:SetStyleAuto(); title:SetFontSize(32) end
     title.text = "LOADING..."
-    title:SetFontSize(32)
     title:SetAlignment(HA_CENTER, VA_CENTER)
     title:SetPosition(0, -40)
-    title.color = Color(0.9, 0.9, 1.0, 1.0)
+    title.color = Color(0.129, 0.741, 0.682, 1.0)  -- PX_PRIMARY teal
 
     -- 进度条背景
     local barW = math.floor(graphics.width * 0.6)
@@ -143,17 +143,17 @@ function LoadingScene:_createUI()
     self.progressBar:AddChild(self.progressFill)
     self.progressFill:SetSize(0, barH)
     self.progressFill:SetPosition(0, 0)
-    self.progressFill.color = Color(0.3, 0.8, 1.0, 1.0)
+    self.progressFill.color = Color(0.129, 0.741, 0.682, 1.0)  -- PX_PRIMARY teal
 
     -- 进度文字
     self.progressText = Text:new()
     self.panel:AddChild(self.progressText)
-    self.progressText:SetStyleAuto()
+    local monoFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Mono-zh_hans.ttf")
+    if monoFont then self.progressText:SetFont(monoFont, 16) else self.progressText:SetStyleAuto(); self.progressText:SetFontSize(16) end
     self.progressText.text = "0 / " .. self.totalCount
-    self.progressText:SetFontSize(16)
     self.progressText:SetAlignment(HA_CENTER, VA_CENTER)
     self.progressText:SetPosition(0, 40)
-    self.progressText.color = Color(0.7, 0.7, 0.8, 1.0)
+    self.progressText.color = Color(0.627, 0.627, 0.753, 1.0)  -- PX_TEXT_SEC
 
     log:Write(LOG_INFO, "[Loading] UI created, " .. self.totalCount .. " resources to load")
 end

@@ -1,4 +1,4 @@
----@diagnostic disable: undefined-global
+---@diagnostic disable: undefined-global, param-type-mismatch, assign-type-mismatch
 -- GameUI 类
 local ScreenUtils = require("scripts/screen_utils")
 

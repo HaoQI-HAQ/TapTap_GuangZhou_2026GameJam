@@ -1,3 +1,4 @@
+---@diagnostic disable: param-type-mismatch, assign-type-mismatch
 -- Enemy 类：敌人（与玩家同尺寸，头上有血条UI）
 Enemy = {}
 Enemy.__index = Enemy

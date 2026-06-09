@@ -1,6 +1,6 @@
 -- editor_mode.lua
 -- 编辑器模式：初始化/销毁、UI构建、模式切换、更新循环
----@diagnostic disable: undefined-global, redefined-local
+---@diagnostic disable: undefined-global, redefined-local, param-type-mismatch, assign-type-mismatch
 
 local LevelManager = require("scripts/level_manager")
 

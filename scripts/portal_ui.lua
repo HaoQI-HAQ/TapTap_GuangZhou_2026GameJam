@@ -34,14 +34,14 @@ function PortalUI:_create()
     self.container.priority = 850
 
     -- 提示文字
+    local pxFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Prop-zh_hans-Bold.ttf")
     self.hintText = Text:new()
     self.container:AddChild(self.hintText)
-    self.hintText:SetStyleAuto()
+    if pxFont then self.hintText:SetFont(pxFont, S(18)) else self.hintText:SetStyleAuto(); self.hintText:SetFontSize(S(18)) end
     self.hintText.text = "传送中..."
-    self.hintText:SetFontSize(S(18))
     self.hintText:SetAlignment(HA_CENTER, VA_TOP)
     self.hintText:SetPosition(0, 0)
-    self.hintText.color = Color(0.9, 0.9, 1.0, 1.0)
+    self.hintText.color = Color(0.941, 0.941, 0.941, 1.0)  -- PX_TEXT
 
     -- 进度条背景
     self.barBg = BorderImage:new()
@@ -49,7 +49,7 @@ function PortalUI:_create()
     self.barBg:SetSize(S(260), S(20))
     self.barBg:SetAlignment(HA_CENTER, VA_TOP)
     self.barBg:SetPosition(0, S(28))
-    self.barBg.color = Color(0.1, 0.1, 0.2, 0.8)
+    self.barBg.color = Color(0.106, 0.106, 0.227, 0.9)  -- PX_SURFACE
 
     -- 进度条填充
     self.barFill = BorderImage:new()
@@ -57,7 +57,7 @@ function PortalUI:_create()
     self.barFill:SetSize(0, self._barH)
     self.barFill:SetAlignment(HA_LEFT, VA_TOP)
     self.barFill:SetPosition(S(20), S(30))
-    self.barFill.color = Color(0.3, 0.7, 1.0, 1.0)
+    self.barFill.color = Color(0.129, 0.741, 0.682, 1.0)  -- PX_PRIMARY teal
 
     -- 默认隐藏
     self.container.visible = false
@@ -65,12 +65,11 @@ function PortalUI:_create()
     -- === 传送门激活提示（屏幕上方） ===
     self.portalHint = Text:new()
     uiRoot:AddChild(self.portalHint)
-    self.portalHint:SetStyleAuto()
+    if pxFont then self.portalHint:SetFont(pxFont, S(16)) else self.portalHint:SetStyleAuto(); self.portalHint:SetFontSize(S(16)) end
     self.portalHint.text = ">> 所有敌人已击败！前往右侧传送门进入下一关 >>"
-    self.portalHint:SetFontSize(S(16))
     self.portalHint:SetAlignment(HA_CENTER, VA_TOP)
     self.portalHint:SetPosition(0, S(60))
-    self.portalHint.color = Color(0.4, 0.8, 1.0, 1.0)
+    self.portalHint.color = Color(0.129, 0.741, 0.682, 1.0)  -- PX_PRIMARY teal
     self.portalHint.priority = 850
     self.portalHint.visible = false
 end
@@ -79,7 +78,7 @@ end
 function PortalUI:showPortalHint()
     if self.portalHint then
         self.portalHint.text = ">> 所有敌人已击败！前往右侧传送门进入下一关 >>"
-        self.portalHint.color = Color(0.4, 0.8, 1.0, 1.0)
+        self.portalHint.color = Color(0.129, 0.741, 0.682, 1.0)  -- PX_PRIMARY teal
         self.portalHint.visible = true
         self._portalActivated = true
         self._notClearedTimer = nil
@@ -145,9 +144,10 @@ end
 function PortalUI:showGameComplete()
     if self.portalHint then
         self.portalHint.text = "★ 恭喜通关！所有关卡已完成 ★"
-        self.portalHint.color = Color(1.0, 0.85, 0.0, 1.0)
+        self.portalHint.color = Color(1.0, 0.851, 0.239, 1.0)  -- PX_WARNING #FFD93D
         self.portalHint.visible = true
-        self.portalHint:SetFontSize(ScreenUtils.s(22))
+        local pxFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Prop-zh_hans-Bold.ttf")
+        if pxFont then self.portalHint:SetFont(pxFont, ScreenUtils.s(22)) else self.portalHint:SetFontSize(ScreenUtils.s(22)) end
         self._portalActivated = true  -- 防止被自动隐藏
     end
     -- 隐藏读条容器
@@ -160,7 +160,7 @@ end
 function PortalUI:showEnemiesNotCleared()
     if self.portalHint then
         self.portalHint.text = "!! 需要击败所有敌人才能传送 !!"
-        self.portalHint.color = Color(1.0, 0.4, 0.3, 1.0)
+        self.portalHint.color = Color(1.0, 0.278, 0.341, 1.0)  -- PX_ERROR #FF4757
         self.portalHint.visible = true
         self._notClearedTimer = 3.0
     end

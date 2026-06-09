@@ -1,11 +1,11 @@
 {
   "$schema": "../schemas/project.schema.json",
-  "project_id": "p_rx5c",
+  "project_id": "p_or7d",
   "author": {
     "id": "1833861402"
   },
   "entry": "main.lua",
-  "version": "1.0.13",
+  "version": "1.0.18",
   "taptap_publish": {
     "app_id": 865053,
     "title": "五秒真男人",

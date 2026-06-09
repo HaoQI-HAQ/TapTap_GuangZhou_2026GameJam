@@ -1,4 +1,4 @@
----@diagnostic disable: undefined-global
+---@diagnostic disable: undefined-global, param-type-mismatch, assign-type-mismatch
 -- GameUI 类
 local ScreenUtils = require("scripts/screen_utils")
 
@@ -46,7 +46,7 @@ function GameUI:_setup()
     log:Write(LOG_INFO, "[GameUI] Created with HP display, buttons and BACK")
 end
 
--- 左上角血量显示
+-- 左上角血量显示（像素风）
 function GameUI:_createHpUI()
     local uiRoot = ui.root
     local S = ScreenUtils.s
@@ -58,8 +58,9 @@ function GameUI:_createHpUI()
     self.hpContainer:SetSize(S(300), S(50))
     table.insert(self.elements, self.hpContainer)
 
-    -- 显式加载字体，确保手机端能正确渲染Unicode符号
-    local hpFont = cache:GetResource("Font", "Fonts/MiSans-Regular.ttf")
+    -- 使用像素字体
+    local hpFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Prop-zh_hans-Bold.ttf")
+        or cache:GetResource("Font", "Fonts/MiSans-Regular.ttf")
 
     for i = 1, self.player:getMaxHp() do
         local hpIcon = Text:new()
@@ -71,7 +72,7 @@ function GameUI:_createHpUI()
             hpIcon:SetStyleAuto()
             hpIcon:SetFontSize(S(28))
         end
-        hpIcon.color = Color(1.0, 0.2, 0.2, 1.0)
+        hpIcon.color = Color(1.0, 0.27, 0.34, 1.0)  -- #FF4757 像素风红色
         hpIcon:SetPosition((i - 1) * S(40), S(5))
         self.hpIcons[i] = hpIcon
     end
@@ -93,7 +94,8 @@ function GameUI:_createCountdownUI()
     self.countdownText = Text:new()
     container:AddChild(self.countdownText)
     self.countdownText.text = "5"
-    local cdFont = cache:GetResource("Font", "Fonts/MiSans-Regular.ttf")
+    local cdFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Mono-zh_hans.ttf")
+        or cache:GetResource("Font", "Fonts/MiSans-Regular.ttf")
     if cdFont then
         self.countdownText:SetFont(cdFont, S(32))
     else
@@ -101,7 +103,7 @@ function GameUI:_createCountdownUI()
         self.countdownText:SetFontSize(S(32))
     end
     self.countdownText:SetAlignment(HA_CENTER, VA_TOP)
-    self.countdownText.color = Color(0.1, 0.1, 0.1, 1.0)
+    self.countdownText.color = Color(0.941, 0.941, 0.941, 1.0)  -- 像素风亮白
 end
 
 -- 左下角摇杆
@@ -390,20 +392,23 @@ end
 
 -- 辅助：坐标命中测试 - 判断屏幕坐标(px,py)是否在容器的屏幕矩形内
 -- px,py 为 UI 坐标空间（已转换）
-function GameUI:_hitTestContainer(px, py, container)
+-- margin: 可选的额外命中区域（平板上增大触控容错）
+function GameUI:_hitTestContainer(px, py, container, margin)
     if not container or not container.visible then return false end
     local sp = container.screenPosition
     local sz = container.size
-    return px >= sp.x and px <= sp.x + sz.x and py >= sp.y and py <= sp.y + sz.y
+    local m = margin or 0
+    return px >= (sp.x - m) and px <= (sp.x + sz.x + m) and py >= (sp.y - m) and py <= (sp.y + sz.y + m)
 end
 
 -- 多点触控按钮检测（每帧调用）
--- 解决：移动端第一个触摸点被摇杆占用后，其他手指的 touchedElement 可能为nil
--- 策略：优先用 touchedElement 判断，备选用坐标命中测试
+-- 解决：移动端第一个触摸点被摇杆占用后，其他手指无法触发 Button Pressed/Released 事件
+-- 修复：平板端多点触控坐标空间兼容（尝试多种坐标映射方式）
 function GameUI:_updateTouchButtons()
     local numTouches = input.numTouches
-    if numTouches <= 0 then
-        -- 无触摸时释放所有按钮状态
+    local mouseDown = input:GetMouseButtonDown(MOUSEB_LEFT)
+
+    if numTouches <= 0 and not mouseDown then
         if self._touchJumpActive then
             self._touchJumpActive = false
             self.inputManager:setTouchAction(InputManager.ACTION_JUMP, false)
@@ -411,6 +416,9 @@ function GameUI:_updateTouchButtons()
         if self._touchAttackActive then
             self._touchAttackActive = false
             self.inputManager:setTouchAction(InputManager.ACTION_ATTACK, false)
+        end
+        if self._touchCardActive then
+            self._touchCardActive = nil
         end
         return
     end
@@ -423,15 +431,60 @@ function GameUI:_updateTouchButtons()
     local scaleX = (gfxW > 0 and uiW > 0) and (uiW / gfxW) or 1.0
     local scaleY = (gfxH > 0 and uiH > 0) and (uiH / gfxH) or 1.0
 
+    -- 平板端触控容错边距（像素）
+    local hitMargin = ScreenUtils.isTablet and 15 or 5
+
+    -- 诊断日志（仅前几帧输出一次，帮助定位坐标空间问题）
+    if not self._touchDiagLogged and numTouches >= 2 then
+        self._touchDiagLogged = true
+        local t0 = input:GetTouch(0)
+        local t1 = input:GetTouch(1)
+        if t0 and t1 then
+            log:Write(LOG_INFO, string.format(
+                "[GameUI:TouchDiag] gfx=%dx%d ui=%dx%d scaleX=%.3f scaleY=%.3f tablet=%s | T0: pos=(%d,%d) id=%d elem=%s | T1: pos=(%d,%d) id=%d elem=%s",
+                gfxW, gfxH, uiW, uiH, scaleX, scaleY, tostring(ScreenUtils.isTablet),
+                t0.position.x, t0.position.y, t0.touchID, tostring(t0.touchedElement ~= nil),
+                t1.position.x, t1.position.y, t1.touchID, tostring(t1.touchedElement ~= nil)))
+            if self.jumpContainer then
+                local jsp = self.jumpContainer.screenPosition
+                local jsz = self.jumpContainer.size
+                log:Write(LOG_INFO, string.format(
+                    "[GameUI:TouchDiag] jumpBtn: screenPos=(%d,%d) size=(%d,%d)",
+                    jsp.x, jsp.y, jsz.x, jsz.y))
+            end
+            if self.attackContainer then
+                local asp = self.attackContainer.screenPosition
+                local asz = self.attackContainer.size
+                log:Write(LOG_INFO, string.format(
+                    "[GameUI:TouchDiag] attackBtn: screenPos=(%d,%d) size=(%d,%d)",
+                    asp.x, asp.y, asz.x, asz.y))
+            end
+        end
+    end
+
     local jumpTouched = false
     local attackTouched = false
     local cardTouching = false
+
+    -- 辅助：尝试多种坐标对(scaled + raw)命中测试，解决平板坐标空间不确定问题
+    local function multiHitTest(posX, posY, container)
+        if not container or not container.visible then return false end
+        -- 方式1：标准缩放坐标
+        local tx = posX * scaleX
+        local ty = posY * scaleY
+        if self:_hitTestContainer(tx, ty, container, hitMargin) then return true end
+        -- 方式2：原始坐标（平板可能 touch.position 已经在 UI 空间）
+        if scaleX ~= 1.0 or scaleY ~= 1.0 then
+            if self:_hitTestContainer(posX, posY, container, hitMargin) then return true end
+        end
+        return false
+    end
 
     for i = 0, numTouches - 1 do
         local touch = input:GetTouch(i)
         if touch then
             -- 跳过已被摇杆占用的触摸点
-            if self.joystickActive and self.joystickTouchID == touch.touchID then
+            if self.joystickActive and self.joystickTouchID and self.joystickTouchID == touch.touchID then
                 goto continue
             end
 
@@ -447,30 +500,30 @@ function GameUI:_updateTouchButtons()
                 if self.btnAttack and self:_isTouchOnElement(touch.touchedElement, self.attackContainer) then
                     hitAttack = true
                 end
-                if G and G.cardUI and G.cardUI.container then
-                    if self:_isTouchOnElement(touch.touchedElement, G.cardUI.container) then
+                if self.cardUI and self.cardUI.container then
+                    if self:_isTouchOnElement(touch.touchedElement, self.cardUI.container) then
                         hitCard = true
                     end
                 end
             end
 
-            -- 备选：touchedElement 为 nil 时用坐标命中测试
-            if not touch.touchedElement or (not hitJump and not hitAttack and not hitCard) then
-                local tx = touch.position.x * scaleX
-                local ty = touch.position.y * scaleY
+            -- 备选：touchedElement 为 nil 或未命中时，用多模式坐标命中测试
+            if not hitJump and not hitAttack and not hitCard then
+                local posX = touch.position.x
+                local posY = touch.position.y
 
                 if not hitJump and self.jumpContainer then
-                    if self:_hitTestContainer(tx, ty, self.jumpContainer) then
+                    if multiHitTest(posX, posY, self.jumpContainer) then
                         hitJump = true
                     end
                 end
                 if not hitAttack and self.attackContainer then
-                    if self:_hitTestContainer(tx, ty, self.attackContainer) then
+                    if multiHitTest(posX, posY, self.attackContainer) then
                         hitAttack = true
                     end
                 end
-                if not hitCard and G and G.cardUI and G.cardUI.container then
-                    if self:_hitTestContainer(tx, ty, G.cardUI.container) then
+                if not hitCard and self.cardUI and self.cardUI.container then
+                    if multiHitTest(posX, posY, self.cardUI.container) then
                         hitCard = true
                     end
                 end
@@ -480,36 +533,47 @@ function GameUI:_updateTouchButtons()
             if hitAttack then attackTouched = true end
 
             -- 卡牌处理：找到具体哪张被按下
-            if hitCard and G and G.cardUI then
+            if hitCard and self.cardUI then
                 cardTouching = true
                 if not self._touchCardActive then
-                    -- 确定具体卡牌槽位
-                    local tx = touch.position.x * scaleX
-                    local ty = touch.position.y * scaleY
-                    for ci = 1, 5 do
-                        local slot = G.cardUI.cardSlots[ci]
-                        if slot and slot.active and slot.btn and slot.btn.visible then
-                            if touch.touchedElement and self:_isTouchOnElement(touch.touchedElement, slot.btn) then
-                                self._touchCardActive = ci
-                                local idx = G.cardUI:getHandIndex(ci)
-                                if idx and G.cardSystem then
-                                    G.cardSystem:useCard(idx)
-                                end
-                                break
-                            elseif self:_hitTestContainer(tx, ty, slot.btn) then
-                                self._touchCardActive = ci
-                                local idx = G.cardUI:getHandIndex(ci)
-                                if idx and G.cardSystem then
-                                    G.cardSystem:useCard(idx)
-                                end
-                                break
-                            end
-                        end
-                    end
+                    self:_handleCardTouch(touch, scaleX, scaleY, hitMargin)
                 end
             end
 
             ::continue::
+        end
+    end
+
+    -- 额外鼠标回退：平板上第二根手指可能只通过鼠标事件报告
+    -- 仅当摇杆活跃且鼠标位置不在摇杆区域时检测按钮
+    if mouseDown and self.joystickActive and not jumpTouched and not attackTouched and not cardTouching then
+        local mousePos = input.mousePosition
+        local mx = mousePos.x * scaleX
+        local my = mousePos.y * scaleY
+        -- 确保鼠标不在摇杆区域（避免误触发）
+        local onJoystick = false
+        if self.joystickContainer and self.joystickContainer.visible then
+            onJoystick = self:_hitTestContainer(mx, my, self.joystickContainer, 0)
+        end
+        if not onJoystick then
+            if not jumpTouched and self.jumpContainer then
+                if self:_hitTestContainer(mx, my, self.jumpContainer, hitMargin) then
+                    jumpTouched = true
+                end
+            end
+            if not attackTouched and self.attackContainer then
+                if self:_hitTestContainer(mx, my, self.attackContainer, hitMargin) then
+                    attackTouched = true
+                end
+            end
+            if not cardTouching and self.cardUI and self.cardUI.container then
+                if self:_hitTestContainer(mx, my, self.cardUI.container, hitMargin) then
+                    cardTouching = true
+                    if not self._touchCardActive then
+                        self:_handleCardTouchByCoord(mx, my, hitMargin)
+                    end
+                end
+            end
         end
     end
 
@@ -534,6 +598,90 @@ function GameUI:_updateTouchButtons()
     -- 卡牌释放（手指离开后允许再次点击）
     if not cardTouching then
         self._touchCardActive = nil
+    end
+end
+
+-- 卡牌触摸处理（从 touch 对象找到具体哪张卡）
+function GameUI:_handleCardTouch(touch, scaleX, scaleY, hitMargin)
+    local bestSlot = nil
+    local bestDist = math.huge
+    local posX = touch.position.x
+    local posY = touch.position.y
+    local tx = posX * scaleX
+    local ty = posY * scaleY
+
+    for ci = 1, 5 do
+        local slot = self.cardUI.cardSlots[ci]
+        if slot and slot.active and slot.btn and slot.btn.visible then
+            -- 优先用 touchedElement 精确匹配
+            if touch.touchedElement and self:_isTouchOnElement(touch.touchedElement, slot.btn) then
+                bestSlot = ci
+                break
+            end
+            -- 坐标命中测试（scaled）
+            if self:_hitTestContainer(tx, ty, slot.btn, hitMargin) then
+                bestSlot = ci
+                break
+            end
+            -- 坐标命中测试（raw，平板兼容）
+            if scaleX ~= 1.0 or scaleY ~= 1.0 then
+                if self:_hitTestContainer(posX, posY, slot.btn, hitMargin) then
+                    bestSlot = ci
+                    break
+                end
+            end
+            -- 备选：找距离最近的活跃卡牌（容忍触摸不精确）
+            local sp = slot.btn.screenPosition
+            local sz = slot.btn.size
+            local centerX = sp.x + sz.x / 2
+            local centerY = sp.y + sz.y / 2
+            local dist = math.abs(tx - centerX) + math.abs(ty - centerY)
+            if dist < bestDist then
+                bestDist = dist
+                bestSlot = ci
+            end
+        end
+    end
+
+    if bestSlot then
+        self._touchCardActive = bestSlot
+        local idx = self.cardUI:getHandIndex(bestSlot)
+        if idx and self.cardSystem then
+            self.cardSystem:useCard(idx)
+        end
+    end
+end
+
+-- 卡牌坐标命中（鼠标回退用）
+function GameUI:_handleCardTouchByCoord(mx, my, hitMargin)
+    local bestSlot = nil
+    local bestDist = math.huge
+
+    for ci = 1, 5 do
+        local slot = self.cardUI.cardSlots[ci]
+        if slot and slot.active and slot.btn and slot.btn.visible then
+            if self:_hitTestContainer(mx, my, slot.btn, hitMargin) then
+                bestSlot = ci
+                break
+            end
+            local sp = slot.btn.screenPosition
+            local sz = slot.btn.size
+            local centerX = sp.x + sz.x / 2
+            local centerY = sp.y + sz.y / 2
+            local dist = math.abs(mx - centerX) + math.abs(my - centerY)
+            if dist < bestDist then
+                bestDist = dist
+                bestSlot = ci
+            end
+        end
+    end
+
+    if bestSlot then
+        self._touchCardActive = bestSlot
+        local idx = self.cardUI:getHandIndex(bestSlot)
+        if idx and self.cardSystem then
+            self.cardSystem:useCard(idx)
+        end
     end
 end
 

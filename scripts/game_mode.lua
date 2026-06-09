@@ -1,6 +1,6 @@
 -- game_mode.lua
 -- 游戏模式：场景创建、关卡初始化、游戏循环、菜单回调、UI
----@diagnostic disable: undefined-global, redefined-local
+---@diagnostic disable: undefined-global, redefined-local, param-type-mismatch, assign-type-mismatch
 
 local ScreenUtils = require("scripts/screen_utils")
 local LevelManager = require("scripts/level_manager")
@@ -184,6 +184,7 @@ function M.InitGameObjects()
     G.cardUI = CardUI:new(G.cardSystem)
     G.cardSkills = CardSkills:new(G.scene_, G.player, G.enemies, G.cardSystem)
     G.gameUI.cardSystem = G.cardSystem
+    G.gameUI.cardUI = G.cardUI
     for _, e in ipairs(G.enemies) do
         e.cardSystem = G.cardSystem
     end
@@ -477,20 +478,23 @@ function M._createGMButton()
     local S = ScreenUtils.s
     local sw = ScreenUtils.width()
 
+    local pxFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Mono-zh_hans.ttf")
+
     G.gmButton = Button:new()
     uiRoot:AddChild(G.gmButton)
-    G.gmButton:SetStyleAuto()
+    G.gmButton:SetStyle("none")
     G.gmButton:SetSize(S(50), S(28))
     G.gmButton:SetPosition(sw - S(60), S(8))
     G.gmButton:SetAlignment(HA_LEFT, VA_TOP)
     G.gmButton.priority = 1200
     G.gmButton.opacity = 0.7
+    G.gmButton.color = Color(0.106, 0.106, 0.227, 0.8)
 
     local btnText = Text:new()
     G.gmButton:AddChild(btnText)
-    btnText:SetStyleAuto()
+    if pxFont then btnText:SetFont(pxFont, S(14)) else btnText:SetStyleAuto(); btnText:SetFontSize(S(14)) end
     btnText.text = "GM"
-    btnText:SetFontSize(S(14))
+    btnText.color = Color(0.424, 0.361, 0.906, 1.0)  -- 紫色
     btnText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(G.gmButton, "Released", "HandleGMButton")
@@ -653,27 +657,29 @@ function M.ShowComingSoon()
     bg:SetPosition(0, 0)
     bg.color = Color(0.95, 0.95, 0.98, 1.0)
 
+    local pxFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Prop-zh_hans-Bold.ttf")
+
     local msg = Text:new()
     G.comingSoonPanel:AddChild(msg)
-    msg:SetStyleAuto()
+    if pxFont then msg:SetFont(pxFont, S(28)) else msg:SetStyleAuto(); msg:SetFontSize(S(28)) end
     msg.text = "未开发请敬请期待"
-    msg:SetFontSize(S(28))
     msg:SetAlignment(HA_CENTER, VA_CENTER)
     msg:SetPosition(0, S(-30))
-    msg.color = Color(0.3, 0.3, 0.4, 1.0)
+    msg.color = Color(0.941, 0.941, 0.941, 1.0)
 
     local btnBack = Button:new()
     G.comingSoonPanel:AddChild(btnBack)
-    btnBack:SetStyleAuto()
+    btnBack:SetStyle("none")
     btnBack:SetSize(S(160), S(50))
     btnBack:SetAlignment(HA_CENTER, VA_CENTER)
     btnBack:SetPosition(0, S(40))
+    btnBack.color = Color(0.106, 0.106, 0.227, 1.0)
 
     local backText = Text:new()
     btnBack:AddChild(backText)
-    backText:SetStyleAuto()
+    if pxFont then backText:SetFont(pxFont, S(22)) else backText:SetStyleAuto(); backText:SetFontSize(S(22)) end
     backText.text = "返回"
-    backText:SetFontSize(S(22))
+    backText.color = Color(0.941, 0.941, 0.941, 1.0)
     backText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnBack, "Released", "HandleComingSoonBack")
@@ -691,49 +697,52 @@ function M._createPauseUI()
     G.pausePanel:SetAlignment(HA_CENTER, VA_CENTER)
     G.pausePanel.priority = 1000
 
+    local pxFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Prop-zh_hans-Bold.ttf")
+
     local bg = BorderImage:new()
     G.pausePanel:AddChild(bg)
     bg:SetSize(sw, sh)
     bg:SetPosition(0, 0)
-    bg.color = Color(0, 0, 0, 0.7)
+    bg.color = Color(0.059, 0.059, 0.137, 0.85)  -- 像素风深色遮罩
 
     local title = Text:new()
     G.pausePanel:AddChild(title)
-    title:SetStyleAuto()
+    if pxFont then title:SetFont(pxFont, S(36)) else title:SetStyleAuto(); title:SetFontSize(S(36)) end
     title.text = "PAUSED"
-    title:SetFontSize(S(36))
     title:SetAlignment(HA_CENTER, VA_CENTER)
     title:SetPosition(0, S(-60))
-    title.color = Color(1.0, 1.0, 1.0, 1.0)
+    title.color = Color(0.129, 0.741, 0.682, 1.0)  -- 青色标题
 
     local btnBack = Button:new()
     G.pausePanel:AddChild(btnBack)
-    btnBack:SetStyleAuto()
+    btnBack:SetStyle("none")
     btnBack:SetSize(S(180), S(55))
     btnBack:SetAlignment(HA_CENTER, VA_CENTER)
     btnBack:SetPosition(0, S(10))
+    btnBack.color = Color(0.106, 0.106, 0.227, 1.0)
 
     local backText = Text:new()
     btnBack:AddChild(backText)
-    backText:SetStyleAuto()
-    backText.text = "Back"
-    backText:SetFontSize(S(24))
+    if pxFont then backText:SetFont(pxFont, S(24)) else backText:SetStyleAuto(); backText:SetFontSize(S(24)) end
+    backText.text = "继续"
+    backText.color = Color(0.941, 0.941, 0.941, 1.0)
     backText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnBack, "Released", "HandlePauseBack")
 
     local btnLeave = Button:new()
     G.pausePanel:AddChild(btnLeave)
-    btnLeave:SetStyleAuto()
+    btnLeave:SetStyle("none")
     btnLeave:SetSize(S(180), S(55))
     btnLeave:SetAlignment(HA_CENTER, VA_CENTER)
     btnLeave:SetPosition(0, S(80))
+    btnLeave.color = Color(0.106, 0.106, 0.227, 1.0)
 
     local leaveText = Text:new()
     btnLeave:AddChild(leaveText)
-    leaveText:SetStyleAuto()
-    leaveText.text = "Leave"
-    leaveText:SetFontSize(S(24))
+    if pxFont then leaveText:SetFont(pxFont, S(24)) else leaveText:SetStyleAuto(); leaveText:SetFontSize(S(24)) end
+    leaveText.text = "离开"
+    leaveText.color = Color(0.941, 0.941, 0.941, 1.0)
     leaveText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(btnLeave, "Released", "HandlePauseLeave")
@@ -787,18 +796,21 @@ function M._createGameOverUI()
         G.gameOverBgSprite:SetImageRect(IntRect(0, 0, preTex:GetWidth(), preTex:GetHeight()))
     end
 
+    local pxFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Prop-zh_hans-Bold.ttf")
+
     G.gameOverRestartBtn = Button:new()
     G.gameOverContainer:AddChild(G.gameOverRestartBtn)
-    G.gameOverRestartBtn:SetStyleAuto()
+    G.gameOverRestartBtn:SetStyle("none")
     G.gameOverRestartBtn:SetSize(S(160), S(50))
     G.gameOverRestartBtn:SetAlignment(HA_CENTER, VA_CENTER)
     G.gameOverRestartBtn:SetPosition(0, S(40))
+    G.gameOverRestartBtn.color = Color(0.106, 0.106, 0.227, 0.9)
 
     local btnText = Text:new()
     G.gameOverRestartBtn:AddChild(btnText)
-    btnText:SetStyleAuto()
+    if pxFont then btnText:SetFont(pxFont, S(22)) else btnText:SetStyleAuto(); btnText:SetFontSize(S(22)) end
     btnText.text = "返回菜单"
-    btnText:SetFontSize(S(22))
+    btnText.color = Color(0.941, 0.941, 0.941, 1.0)
     btnText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(G.gameOverRestartBtn, "Released", "HandleRestart")
@@ -850,38 +862,42 @@ function M._createVictoryUI()
         G.victoryBgSprite:SetImageRect(IntRect(0, 0, victoryTex:GetWidth(), victoryTex:GetHeight()))
     end
 
-    -- 返回主菜单按钮（左边中间）
+    local pxFont = cache:GetResource("Font", "Fonts/FusionPixel-12px-Prop-zh_hans-Bold.ttf")
+
+    -- 返回主菜单按钮（左边中间，像素风）
     G.victoryMenuBtn = Button:new()
     G.victoryContainer:AddChild(G.victoryMenuBtn)
-    G.victoryMenuBtn:SetStyleAuto()
+    G.victoryMenuBtn:SetStyle("none")
     G.victoryMenuBtn:SetSize(S(160), S(50))
     G.victoryMenuBtn:SetAlignment(HA_LEFT, VA_CENTER)
     G.victoryMenuBtn:SetPosition(S(60), 0)
     G.victoryMenuBtn.priority = 10
+    G.victoryMenuBtn.color = Color(0.106, 0.106, 0.227, 0.9)
 
     local menuBtnText = Text:new()
     G.victoryMenuBtn:AddChild(menuBtnText)
-    menuBtnText:SetStyleAuto()
+    if pxFont then menuBtnText:SetFont(pxFont, S(20)) else menuBtnText:SetStyleAuto(); menuBtnText:SetFontSize(S(20)) end
     menuBtnText.text = "回主菜单"
-    menuBtnText:SetFontSize(S(20))
+    menuBtnText.color = Color(0.941, 0.941, 0.941, 1.0)
     menuBtnText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(G.victoryMenuBtn, "Released", "HandleVictoryMenu")
 
-    -- 重开按钮（右边中间）
+    -- 重开按钮（右边中间，像素风）
     G.victoryRestartBtn = Button:new()
     G.victoryContainer:AddChild(G.victoryRestartBtn)
-    G.victoryRestartBtn:SetStyleAuto()
+    G.victoryRestartBtn:SetStyle("none")
     G.victoryRestartBtn:SetSize(S(160), S(50))
     G.victoryRestartBtn:SetAlignment(HA_RIGHT, VA_CENTER)
     G.victoryRestartBtn:SetPosition(S(-60), 0)
     G.victoryRestartBtn.priority = 10
+    G.victoryRestartBtn.color = Color(0.106, 0.106, 0.227, 0.9)
 
     local restartBtnText = Text:new()
     G.victoryRestartBtn:AddChild(restartBtnText)
-    restartBtnText:SetStyleAuto()
+    if pxFont then restartBtnText:SetFont(pxFont, S(20)) else restartBtnText:SetStyleAuto(); restartBtnText:SetFontSize(S(20)) end
     restartBtnText.text = "重新开始"
-    restartBtnText:SetFontSize(S(20))
+    restartBtnText.color = Color(0.941, 0.941, 0.941, 1.0)
     restartBtnText:SetAlignment(HA_CENTER, VA_CENTER)
 
     SubscribeToEvent(G.victoryRestartBtn, "Released", "HandleVictoryRestart")

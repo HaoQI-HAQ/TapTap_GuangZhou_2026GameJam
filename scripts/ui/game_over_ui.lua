@@ -1,6 +1,6 @@
 -- ui/game_over_ui.lua
 -- Game Over CG 界面创建与动画
----@diagnostic disable: undefined-global
+---@diagnostic disable: undefined-global, param-type-mismatch, assign-type-mismatch
 
 local ScreenUtils = require("scripts/screen_utils")
 

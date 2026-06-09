@@ -1,3 +1,4 @@
+---@diagnostic disable: param-type-mismatch, assign-type-mismatch
 -- 卡牌UI模块 - 右下角5张手牌（在平A按钮上方）
 local CardData = require("scripts/card_data")
 local ScreenUtils = require("scripts/screen_utils")
@@ -61,28 +62,36 @@ function CardUI:_createCardSlot(index)
     local cw, ch, cs = self._cw, self._ch, self._cs
     local x = (index - 1) * (cw + cs)
 
-    -- 卡牌按钮（清除默认灰色纹理样式）
+    -- 卡牌按钮（像素风格：深色底+2px边框）
     local btn = Button:new()
     self.container:AddChild(btn)
     btn:SetStyle("none")
-    btn.color = Color(0, 0, 0, 0)
+    btn.color = Color(0.106, 0.106, 0.227, 0.9)  -- PX_SURFACE
     btn:SetSize(cw, ch)
     btn:SetPosition(x, 0)
-    btn:SetOpacity(0.8)
+    btn:SetOpacity(0.9)
+
+    -- 像素边框层
+    local border = BorderImage:new()
+    btn:AddChild(border)
+    border:SetSize(cw, ch)
+    border:SetPosition(0, 0)
+    border.color = Color(0.227, 0.227, 0.416, 1.0)  -- PX_BORDER
+    border.priority = -1
 
     -- 卡牌图片（使用card文件夹下的图片）
     local cardImage = BorderImage:new()
     btn:AddChild(cardImage)
-    cardImage:SetSize(cw, ch)
-    cardImage:SetPosition(0, 0)
+    cardImage:SetSize(cw - ScreenUtils.ui(4), ch - ScreenUtils.ui(4))
+    cardImage:SetPosition(ScreenUtils.ui(2), ScreenUtils.ui(2))
     cardImage.color = Color(1.0, 1.0, 1.0, 1.0)
 
-    -- 属性颜色条（底部薄条，标示元素）
+    -- 属性颜色条（底部薄条，标示元素 - 像素风加粗）
     local elementBar = BorderImage:new()
     btn:AddChild(elementBar)
-    elementBar:SetSize(cw, ScreenUtils.ui(5))
-    elementBar:SetPosition(0, ch - ScreenUtils.ui(5))
-    elementBar.color = Color(0.5, 0.5, 0.5, 1.0)
+    elementBar:SetSize(cw - ScreenUtils.ui(4), ScreenUtils.ui(6))
+    elementBar:SetPosition(ScreenUtils.ui(2), ch - ScreenUtils.ui(8))
+    elementBar.color = Color(0.129, 0.741, 0.682, 1.0)  -- PX_PRIMARY 默认青色
 
     -- 订阅按钮点击事件
     local eventName = "HandleCardBtn" .. index

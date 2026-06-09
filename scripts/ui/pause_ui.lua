@@ -1,6 +1,6 @@
 -- ui/pause_ui.lua
 -- 暂停面板和 ComingSoon 面板
----@diagnostic disable: undefined-global
+---@diagnostic disable: undefined-global, param-type-mismatch, assign-type-mismatch
 
 local ScreenUtils = require("scripts/screen_utils")
 
