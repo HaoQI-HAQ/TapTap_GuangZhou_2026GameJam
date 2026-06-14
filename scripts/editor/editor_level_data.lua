@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- editor_level_data.lua
 -- 关卡编辑器 - 数据层（常量、撤销/重做、持久化、关卡管理）
 ---@diagnostic disable: undefined-global, redefined-local

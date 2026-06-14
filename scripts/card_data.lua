@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 卡牌数据定义
 local CardData = {}
 

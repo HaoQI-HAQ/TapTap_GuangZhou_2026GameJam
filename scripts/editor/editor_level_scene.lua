@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- editor_level_scene.lua
 -- 关卡编辑器 - 场景层（地面、对象生成、材质、坐标转换）
 ---@diagnostic disable: undefined-global, redefined-local

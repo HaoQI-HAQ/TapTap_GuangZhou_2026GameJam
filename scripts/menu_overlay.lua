@@ -1,4 +1,4 @@
----@diagnostic disable: param-type-mismatch, assign-type-mismatch
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- MenuOverlay 游戏开始界面（全屏UI覆盖层）- PixelForge 像素风主题
 -- 两层菜单：标题页(START) → 模式选择页(测试房间/普通模式/无尽模式/返回)
 local ScreenUtils = require("scripts/screen_utils")

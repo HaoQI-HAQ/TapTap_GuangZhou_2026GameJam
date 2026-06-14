@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- LoadingScene 预加载场景模块
 -- 显示加载进度，预加载所有游戏资源后回调通知完成
 LoadingScene = {}

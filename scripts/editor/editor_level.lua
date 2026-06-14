@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- editor_level.lua
 -- 关卡可视化编辑器 - 入口/协调器
 -- 功能：拖拽放置平台、敌人、传送门；平移/缩放画布；撤销/重做；复制/粘贴；快捷键；导出/导入JSON

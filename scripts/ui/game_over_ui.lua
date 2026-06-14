@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- ui/game_over_ui.lua
 -- Game Over CG 界面创建与动画
 ---@diagnostic disable: undefined-global, param-type-mismatch, assign-type-mismatch

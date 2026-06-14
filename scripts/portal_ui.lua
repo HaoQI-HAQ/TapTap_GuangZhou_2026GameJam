@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 传送门读条UI：显示传送进度条和提示文字
 local ScreenUtils = require("scripts/screen_utils")
 

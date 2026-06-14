@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- scene_manager.lua
 -- 场景创建、相机设置、关卡背景和地形生成
 ---@diagnostic disable: undefined-global, param-type-mismatch, assign-type-mismatch

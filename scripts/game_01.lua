@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- ============================================================================
 -- 2D 动作游戏原型 - game_01 场景模块
 -- 功能: WASD移动 + PS手柄支持 + 虚拟摇杆 + 平A攻击 + 5滴血

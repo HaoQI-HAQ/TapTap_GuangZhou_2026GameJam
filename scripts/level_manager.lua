@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 关卡管理器：管理关卡配置、传送门、关卡切换
 local LevelManager = {}
 LevelManager.__index = LevelManager

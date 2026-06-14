@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 屏幕分辨率适配工具
 -- 基于设计分辨率 1280x720（16:9 横屏）计算缩放因子
 -- 所有 UI 尺寸乘以 scale 后可在不同手机上保持一致比例

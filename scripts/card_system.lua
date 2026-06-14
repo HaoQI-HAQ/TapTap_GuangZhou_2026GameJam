@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 卡牌系统核心逻辑（适配 main.lua 接口）
 local CardData = require("scripts/card_data")
 

@@ -1,9 +1,11 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 关卡与UI可视化编辑器 - 主入口
 require "LuaScripts/Utilities/Sample"
 
 local UI = require("urhox-libs/UI")
 local EditorLevel = require("editor/editor_level")
 local EditorUI = require("editor/editor_ui")
+local BGM = require("bgm")
 
 ---@type Scene
 local scene_ = nil
@@ -24,6 +26,8 @@ local tabUI = nil
 local statusLabel = nil
 local editorRoot = nil
 local contentPanel = nil
+local volumeBtn = nil
+local isMuted = false
 
 function Start()
     SampleStart()
@@ -58,6 +62,9 @@ function Start()
         },
         scale = UI.Scale.DEFAULT,
     })
+
+    -- 初始化 BGM
+    BGM.init(scene_)
 
     -- 初始化子编辑器（它们会创建自己的 panel）
     levelEditor = EditorLevel:new(scene_, cameraNode, nvgCtx)
@@ -118,6 +125,28 @@ function _createEditorUI()
                 onClick = function() _switchMode("ui") end,
             },
             UI.Panel { flex = 1 },
+            UI.Button {
+                id = "btn_volume",
+                text = "音量: 开",
+                fontSize = 12,
+                width = 80,
+                height = 28,
+                variant = "outline",
+                onClick = function()
+                    isMuted = not isMuted
+                    if isMuted then
+                        BGM.setPaused(true)
+                        audio:SetMasterGain(SOUND_MUSIC, 0.0)
+                    else
+                        audio:SetMasterGain(SOUND_MUSIC, 1.0)
+                        BGM.setPaused(false)
+                    end
+                    if volumeBtn then
+                        volumeBtn:SetText(isMuted and "音量: 关" or "音量: 开")
+                        volumeBtn:SetVariant(isMuted and "danger" or "outline")
+                    end
+                end,
+            },
             UI.Label {
                 id = "status",
                 text = "就绪",
@@ -157,6 +186,7 @@ function _createEditorUI()
     tabLevel = editorRoot:FindById("tab_level")
     tabUI = editorRoot:FindById("tab_ui")
     statusLabel = editorRoot:FindById("status")
+    volumeBtn = editorRoot:FindById("btn_volume")
 end
 
 function _switchMode(mode)
@@ -185,6 +215,11 @@ end
 
 function HandleUpdate(eventType, eventData)
     local dt = eventData["TimeStep"]:GetFloat()
+
+    -- BGM 循环播放检测
+    if not isMuted then
+        BGM.update()
+    end
 
     if editorMode == "level" and levelEditor then
         levelEditor:update(dt)

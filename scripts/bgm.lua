@@ -1,4 +1,4 @@
----@diagnostic disable: param-type-mismatch, assign-type-mismatch
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- BGM 模块：随机循环播放背景音乐
 local BGM = {}
 

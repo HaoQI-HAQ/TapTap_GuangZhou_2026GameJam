@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 五感剥夺系统 - 读取 Data/senses_config.txt 配置
 -- 每次受伤随机剥夺一种感官（前4次），第5次固定剥夺视觉=死亡
 SensesSystem = {}

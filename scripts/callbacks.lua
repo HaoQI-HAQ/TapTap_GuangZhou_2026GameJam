@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- callbacks.lua
 -- 全局事件回调注册（引擎事件系统通过函数名调用）
 ---@diagnostic disable: undefined-global

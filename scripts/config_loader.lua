@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 配置加载器
 -- 从 scripts/config/ 目录加载 Lua 配置表
 -- 配置文件为纯 Lua table，可用 Excel 编辑 CSV 后通过脚本转换生成

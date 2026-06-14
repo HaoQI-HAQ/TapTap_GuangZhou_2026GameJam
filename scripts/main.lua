@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- main.lua
 -- 统一入口：游戏 + 编辑器模式切换（薄分发层）
 ---@diagnostic disable: undefined-global, redefined-local

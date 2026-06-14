@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 五感剥夺配置数据表
 -- 修改此文件可调整各感官的效果参数
 -- sense: 感官名称

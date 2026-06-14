@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 五感剥夺阶段数据表
 -- hp: 剩余血量
 -- lost_count: 已失去感官数

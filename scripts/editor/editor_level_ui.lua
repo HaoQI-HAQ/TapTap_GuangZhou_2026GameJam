@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- editor_level_ui.lua
 -- 关卡编辑器 - UI层（面板构建、工具选择、Inspector、资源浏览器）
 ---@diagnostic disable: undefined-global, redefined-local
@@ -832,7 +833,12 @@ function M.mixin(cls)
     function cls:_returnToGame()
         local ok, EditorMode = pcall(require, "scripts/editor_mode")
         if ok and EditorMode and EditorMode.switchToGame then
-            EditorMode.switchToGame()
+            local success, err = pcall(EditorMode.switchToGame)
+            if not success then
+                log:Write(LOG_WARNING, "[EditorUI] Cannot return to game (standalone editor mode): " .. tostring(err))
+            end
+        else
+            log:Write(LOG_WARNING, "[EditorUI] editor_mode not available, cannot return to game")
         end
     end
 

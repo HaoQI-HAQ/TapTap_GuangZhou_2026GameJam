@@ -1,4 +1,4 @@
----@diagnostic disable: param-type-mismatch, assign-type-mismatch
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- Player 类 - 精灵动画 + 战斗系统
 Player = {}
 Player.__index = Player

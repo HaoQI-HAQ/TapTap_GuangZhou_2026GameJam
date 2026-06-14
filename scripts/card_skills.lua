@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 卡牌技能效果执行模块
 -- 负责：投射物创建/移动、AOE区域、控制效果等
 local CardData = require("scripts/card_data")

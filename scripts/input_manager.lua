@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- InputManager 类：统一管理键盘、手机按钮、手柄三种输入
 InputManager = {}
 InputManager.__index = InputManager

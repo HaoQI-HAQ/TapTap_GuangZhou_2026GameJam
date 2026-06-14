@@ -1,4 +1,4 @@
----@diagnostic disable: param-type-mismatch, assign-type-mismatch
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- Enemy 类：敌人（与玩家同尺寸，头上有血条UI）
 Enemy = {}
 Enemy.__index = Enemy
@@ -22,6 +22,38 @@ local BOSS_SKILL_FRAMES = 3      -- Boss大招动画帧数（身体）
 local BOSS_SKILL_FRAME_DUR = 0.267 -- 每帧持续时间（秒）0.8s/3帧
 local BOSS_SKILL_FRAME_PX = 682  -- 每帧像素宽度
 local BOSS_SKILL_TEX_W = 2048    -- 精灵图总宽度
+-- Boss平A（普通攻击）动画参数（3列×2行，共6帧）
+local BOSS_ATK_FRAMES = 6        -- 平A帧数
+local BOSS_ATK_COLS = 3           -- 每行3帧
+local BOSS_ATK_ROWS = 2           -- 共2行
+local BOSS_ATK_FRAME_PX = 700    -- 每帧像素宽度
+local BOSS_ATK_FRAME_PY = 600    -- 每帧像素高度
+local BOSS_ATK_TEX_W = 2100      -- 精灵图总宽度 (700*3)
+local BOSS_ATK_TEX_H = 1200      -- 精灵图总高度 (600*2)
+local BOSS_ATK_FPS = 10          -- 平A动画帧率
+-- Boss技能2（愤怒闪电）参数（3列×2行，共6帧，700x600每帧）
+local BOSS_SKILL2_FRAMES = 6
+local BOSS_SKILL2_COLS = 3
+local BOSS_SKILL2_ROWS = 2
+local BOSS_SKILL2_FRAME_PX = 700
+local BOSS_SKILL2_FRAME_PY = 600
+local BOSS_SKILL2_TEX_W = 2100    -- 700*3
+local BOSS_SKILL2_TEX_H = 1200   -- 600*2
+local BOSS_SKILL2_FPS = 8        -- 施法动画帧率
+local BOSS_SKILL2_CD = 5.0       -- 技能2冷却时间
+local BOSS_SKILL2_DAMAGE = 2     -- 闪电伤害
+local BOSS_SKILL2_RELEASE_FRAME = 3  -- 第4帧(index=3)释放特效
+-- 闪电特效参数（同样3列×2行，6帧）
+local BOSS_SKILL2_EFF_FRAMES = 6
+local BOSS_SKILL2_EFF_COLS = 3
+local BOSS_SKILL2_EFF_ROWS = 2
+local BOSS_SKILL2_EFF_FRAME_PX = 700
+local BOSS_SKILL2_EFF_FRAME_PY = 600
+local BOSS_SKILL2_EFF_TEX_W = 2100
+local BOSS_SKILL2_EFF_TEX_H = 1200
+local BOSS_SKILL2_EFF_FPS = 12    -- 闪电特效帧率（快些）
+local BOSS_SKILL2_EFF_DURATION = 0.5  -- 闪电特效持续时间
+local BOSS_SKILL2_EFF_TRACK_SPEED = 6.0  -- 闪电跟踪速度(m/s)
 -- Boss大招特效参数（嘴巴处喷射特效）
 local BOSS_EFF_FRAMES = 4        -- 特效帧数
 local BOSS_EFF_FRAME_PX = 512    -- 特效每帧像素宽度
@@ -87,12 +119,27 @@ function Enemy:new(scene, camera, player, x, y, element, isBoss)
     self.skillDamageDealt = false -- 本次大招是否已造成伤害
     self.skillMaterial = nil     -- 大招动画材质
     self.skillFirstApproachTriggered = false  -- 第一次靠近是否已触发
+
+    -- Boss技能2（愤怒闪电）状态
+    self.enraged = false          -- 是否进入愤怒状态（半血触发）
+    self.skill2Timer = 0          -- 技能2 CD计时器
+    self.skill2Active = false     -- 是否正在施放技能2
+    self.skill2FrameTimer = 0     -- 施法动画帧计时
+    self.skill2CurrentFrame = 0   -- 当前施法帧
+    self.skill2EffReleased = false -- 是否已释放闪电特效
+    self.skill2EffActive = false  -- 闪电特效是否激活
+    self.skill2EffTimer = 0       -- 闪电特效存活计时
+    self.skill2EffFrameTimer = 0  -- 特效帧计时
+    self.skill2EffCurrentFrame = 0 -- 特效当前帧
+    self.skill2DamageDealt = false -- 本次是否已造成伤害
     self:_createNode(scene, x, y)
     self:_createHpBar()
 
 
     if self.isBoss then
         self:_initBossSkill()
+        self:_initBossAttack()
+        self:_initBossSkill2()
     end
     return self
 end
@@ -375,6 +422,254 @@ function Enemy:_initBossSkill()
     log:Write(LOG_INFO, "[Enemy] Boss skill initialized (overlay node)")
 end
 
+-- 初始化Boss平A攻击动画材质（3列×2行网格）
+function Enemy:_initBossAttack()
+    local atkTex = cache:GetResource("Texture2D", "image/Enemy/boss_01_skill_normal.png")
+    if not atkTex then
+        log:Write(LOG_ERROR, "[Enemy] Failed to load boss attack texture: boss_01_skill_normal.png")
+        return
+    end
+    local mat = Material:new()
+    mat:SetTechnique(0, cache:GetResource("Technique", "Techniques/DiffAlpha.xml"))
+    mat:SetTexture(0, atkTex)
+    mat:SetShaderParameter("MatDiffColor", Variant(Color(1, 1, 1, 1)))
+    -- 初始UV：显示第0帧（第0列第0行）
+    local frameU = BOSS_ATK_FRAME_PX / BOSS_ATK_TEX_W  -- 700/2100 = 1/3
+    local frameV = BOSS_ATK_FRAME_PY / BOSS_ATK_TEX_H  -- 600/1200 = 1/2
+    mat:SetShaderParameter("UOffset", Variant(Vector4(frameU, 0, 0, 0)))
+    mat:SetShaderParameter("VOffset", Variant(Vector4(0, frameV, 0, 0)))
+    self.bossAtkMaterial = mat
+    self.bossAtkAnimActive = false
+    self.bossAtkFrameTimer = 0
+    self.bossAtkCurrentFrame = 0
+    log:Write(LOG_INFO, "[Enemy] Boss attack animation initialized (3x2 grid, 6 frames, 700x600 each)")
+end
+
+-- 设置Boss平A动画帧UV（网格布局：col = frameIdx % 3, row = frameIdx // 3）
+function Enemy:_setBossAtkFrame(frameIdx)
+    if not self.bossAtkMaterial then return end
+    local col = frameIdx % BOSS_ATK_COLS
+    local row = math.floor(frameIdx / BOSS_ATK_COLS)
+    local frameU = BOSS_ATK_FRAME_PX / BOSS_ATK_TEX_W  -- 1/3
+    local frameV = BOSS_ATK_FRAME_PY / BOSS_ATK_TEX_H  -- 1/2
+    local offsetU = col * frameU
+    local offsetV = row * frameV
+    self.bossAtkMaterial:SetShaderParameter("UOffset", Variant(Vector4(frameU, 0, 0, offsetU)))
+    self.bossAtkMaterial:SetShaderParameter("VOffset", Variant(Vector4(0, frameV, 0, offsetV)))
+end
+
+-- 初始化Boss技能2（愤怒闪电）材质和特效节点
+function Enemy:_initBossSkill2()
+    -- 施法动画材质（boss_01_skill_02.png, 3×2网格）
+    local castTex = cache:GetResource("Texture2D", "image/Enemy/boss_01_skill_02.png")
+    if not castTex then
+        log:Write(LOG_ERROR, "[Enemy] Failed to load boss skill2 cast texture")
+        return
+    end
+    local castMat = Material:new()
+    castMat:SetTechnique(0, cache:GetResource("Technique", "Techniques/DiffAlpha.xml"))
+    castMat:SetTexture(0, castTex)
+    castMat:SetShaderParameter("MatDiffColor", Variant(Color(1, 1, 1, 1)))
+    local frameU = BOSS_SKILL2_FRAME_PX / BOSS_SKILL2_TEX_W  -- 1/3
+    local frameV = BOSS_SKILL2_FRAME_PY / BOSS_SKILL2_TEX_H  -- 1/2
+    castMat:SetShaderParameter("UOffset", Variant(Vector4(frameU, 0, 0, 0)))
+    castMat:SetShaderParameter("VOffset", Variant(Vector4(0, frameV, 0, 0)))
+    self.skill2CastMaterial = castMat
+
+    -- 闪电特效材质（boss_01_skill_02_eff.png, 3×2网格）
+    local effTex = cache:GetResource("Texture2D", "image/Enemy/boss_01_skill_02_eff.png")
+    if not effTex then
+        log:Write(LOG_ERROR, "[Enemy] Failed to load boss skill2 effect texture")
+        return
+    end
+    local effMat = Material:new()
+    effMat:SetTechnique(0, cache:GetResource("Technique", "Techniques/DiffAlpha.xml"))
+    effMat:SetTexture(0, effTex)
+    effMat:SetShaderParameter("MatDiffColor", Variant(Color(1, 1, 1, 1)))
+    local effFrameU = BOSS_SKILL2_EFF_FRAME_PX / BOSS_SKILL2_EFF_TEX_W
+    local effFrameV = BOSS_SKILL2_EFF_FRAME_PY / BOSS_SKILL2_EFF_TEX_H
+    effMat:SetShaderParameter("UOffset", Variant(Vector4(effFrameU, 0, 0, 0)))
+    effMat:SetShaderParameter("VOffset", Variant(Vector4(0, effFrameV, 0, 0)))
+    self.skill2EffMaterial = effMat
+
+    -- 闪电特效节点（独立于Boss，在场景中跟踪玩家）
+    self.skill2EffNode = self.scene:CreateChild("BossSkill2Lightning")
+    self.skill2EffNode.rotation = Quaternion(-90, Vector3(1, 0, 0))
+    -- 闪电特效显示尺寸：2.0 x 2.0（正方形，因为帧是700x600≈正方形）
+    local effDispH = 2.5
+    local effDispW = effDispH * (BOSS_SKILL2_EFF_FRAME_PX / BOSS_SKILL2_EFF_FRAME_PY)  -- 700/600
+    self.skill2EffNode.scale = Vector3(effDispW, 1.0, effDispH)
+    local effModel = self.skill2EffNode:CreateComponent("StaticModel")
+    effModel:SetModel(cache:GetResource("Model", "Models/Plane.mdl"))
+    effModel:SetMaterial(effMat)
+    self.skill2EffNode.enabled = false
+
+    log:Write(LOG_INFO, "[Enemy] Boss skill2 (rage lightning) initialized")
+end
+
+-- 设置技能2施法动画帧（3×2网格）
+function Enemy:_setSkill2CastFrame(frameIdx)
+    if not self.skill2CastMaterial then return end
+    local col = frameIdx % BOSS_SKILL2_COLS
+    local row = math.floor(frameIdx / BOSS_SKILL2_COLS)
+    local frameU = BOSS_SKILL2_FRAME_PX / BOSS_SKILL2_TEX_W
+    local frameV = BOSS_SKILL2_FRAME_PY / BOSS_SKILL2_TEX_H
+    self.skill2CastMaterial:SetShaderParameter("UOffset", Variant(Vector4(frameU, 0, 0, col * frameU)))
+    self.skill2CastMaterial:SetShaderParameter("VOffset", Variant(Vector4(0, frameV, 0, row * frameV)))
+end
+
+-- 设置技能2闪电特效帧（3×2网格）
+function Enemy:_setSkill2EffFrame(frameIdx)
+    if not self.skill2EffMaterial then return end
+    local col = frameIdx % BOSS_SKILL2_EFF_COLS
+    local row = math.floor(frameIdx / BOSS_SKILL2_EFF_COLS)
+    local frameU = BOSS_SKILL2_EFF_FRAME_PX / BOSS_SKILL2_EFF_TEX_W
+    local frameV = BOSS_SKILL2_EFF_FRAME_PY / BOSS_SKILL2_EFF_TEX_H
+    self.skill2EffMaterial:SetShaderParameter("UOffset", Variant(Vector4(frameU, 0, 0, col * frameU)))
+    self.skill2EffMaterial:SetShaderParameter("VOffset", Variant(Vector4(0, frameV, 0, row * frameV)))
+end
+
+-- 开始施放技能2（隐藏本体，显示施法动画）
+function Enemy:_startSkill2()
+    self.skill2Active = true
+    self.skill2FrameTimer = 0
+    self.skill2CurrentFrame = 0
+    self.skill2EffReleased = false
+    self.skill2DamageDealt = false
+    self.skill2Timer = 0  -- 重置CD
+
+    -- 隐藏本体精灵，切换到施法材质
+    if self.spriteNode then
+        local mdl = self.spriteNode:GetComponent("StaticModel")
+        if mdl then mdl:SetMaterial(self.skill2CastMaterial) end
+        -- 调整尺寸适配施法帧比例
+        local dispH = self.bossDispH or 2.4
+        local castAspect = BOSS_SKILL2_FRAME_PX / BOSS_SKILL2_FRAME_PY
+        local castDispW = dispH * castAspect
+        self.skill2CastDispW = castDispW
+        -- 面朝玩家
+        local playerPos = self.player:getPosition()
+        local bossPos = self.node.position
+        local faceDir = playerPos.x > bossPos.x and 1 or -1
+        self.lastFaceDir = faceDir
+        -- 施法贴图朝向与行走贴图相反（同平A）
+        self.spriteNode.scale = Vector3(castDispW * faceDir, 1.0, dispH)
+    end
+    self:_setSkill2CastFrame(0)
+    log:Write(LOG_INFO, "[Enemy] Boss skill2 (rage lightning) started!")
+end
+
+-- 释放闪电特效（在玩家头顶出现并跟踪）
+function Enemy:_releaseSkill2Effect()
+    if not self.skill2EffNode then return end
+    self.skill2EffReleased = true
+    self.skill2EffActive = true
+    self.skill2EffTimer = 0
+    self.skill2EffFrameTimer = 0
+    self.skill2EffCurrentFrame = 0
+
+    -- 闪电出现在玩家当前位置上方
+    local playerPos = self.player:getPosition()
+    self.skill2EffNode.position = Vector3(playerPos.x, playerPos.y + 1.0, -0.15)
+    self.skill2EffNode.enabled = true
+    self:_setSkill2EffFrame(0)
+    log:Write(LOG_INFO, "[Enemy] Boss skill2 lightning released at player!")
+end
+
+-- 更新技能2状态
+function Enemy:_updateSkill2(dt)
+    -- 更新施法动画
+    if self.skill2Active then
+        self.skill2FrameTimer = self.skill2FrameTimer + dt
+        local frameDur = 1.0 / BOSS_SKILL2_FPS
+        if self.skill2FrameTimer >= frameDur then
+            self.skill2FrameTimer = self.skill2FrameTimer - frameDur
+            self.skill2CurrentFrame = self.skill2CurrentFrame + 1
+
+            -- 到达释放帧时发射闪电
+            if self.skill2CurrentFrame == BOSS_SKILL2_RELEASE_FRAME and not self.skill2EffReleased then
+                self:_releaseSkill2Effect()
+            end
+
+            if self.skill2CurrentFrame >= BOSS_SKILL2_FRAMES then
+                -- 施法动画播完，结束施法状态
+                self:_endSkill2Cast()
+                return
+            end
+            self:_setSkill2CastFrame(self.skill2CurrentFrame)
+        end
+    end
+
+    -- 更新闪电特效（跟踪玩家 + 帧动画）
+    if self.skill2EffActive and self.skill2EffNode then
+        self.skill2EffTimer = self.skill2EffTimer + dt
+
+        -- 跟踪玩家位置
+        local playerPos = self.player:getPosition()
+        local effPos = self.skill2EffNode.position
+        local targetX = playerPos.x
+        local targetY = playerPos.y + 1.0
+        -- 平滑跟踪
+        local dx = targetX - effPos.x
+        local dy = targetY - effPos.y
+        local dist = math.sqrt(dx * dx + dy * dy)
+        if dist > 0.1 then
+            local moveSpeed = BOSS_SKILL2_EFF_TRACK_SPEED * dt
+            local move = math.min(moveSpeed, dist)
+            self.skill2EffNode.position = Vector3(
+                effPos.x + dx / dist * move,
+                effPos.y + dy / dist * move,
+                -0.15
+            )
+        end
+
+        -- 帧动画
+        self.skill2EffFrameTimer = self.skill2EffFrameTimer + dt
+        local effFrameDur = 1.0 / BOSS_SKILL2_EFF_FPS
+        if self.skill2EffFrameTimer >= effFrameDur then
+            self.skill2EffFrameTimer = self.skill2EffFrameTimer - effFrameDur
+            self.skill2EffCurrentFrame = (self.skill2EffCurrentFrame + 1) % BOSS_SKILL2_EFF_FRAMES
+            self:_setSkill2EffFrame(self.skill2EffCurrentFrame)
+        end
+
+        -- 伤害判定：特效中心与玩家距离在1.5m内
+        if not self.skill2DamageDealt then
+            local px = playerPos.x
+            local py = playerPos.y
+            local ex = self.skill2EffNode.position.x
+            local ey = self.skill2EffNode.position.y - 1.0  -- 特效中心偏上，判定点下移
+            local hitDist = math.sqrt((px - ex) * (px - ex) + (py - ey) * (py - ey))
+            if hitDist <= 1.5 then
+                self.player:takeDamage(BOSS_SKILL2_DAMAGE, ex)
+                self.skill2DamageDealt = true
+                log:Write(LOG_INFO, "[Enemy] Boss skill2 lightning hit player!")
+            end
+        end
+
+        -- 特效持续时间到后消失
+        if self.skill2EffTimer >= BOSS_SKILL2_EFF_DURATION then
+            self.skill2EffNode.enabled = false
+            self.skill2EffActive = false
+        end
+    end
+end
+
+-- 结束技能2施法动画，恢复行走材质
+function Enemy:_endSkill2Cast()
+    self.skill2Active = false
+    -- 恢复行走材质
+    if self.spriteNode and self.bossMaterial then
+        local mdl = self.spriteNode:GetComponent("StaticModel")
+        if mdl then mdl:SetMaterial(self.bossMaterial) end
+        -- 恢复行走尺寸
+        local dw = self.bossDispW or 2.4
+        local dh = self.bossDispH or 2.4
+        local faceDir = self.lastFaceDir or 1
+        self.spriteNode.scale = Vector3(-dw * faceDir, 1.0, dh)
+    end
+    log:Write(LOG_INFO, "[Enemy] Boss skill2 cast ended")
+end
+
 -- 设置大招材质的UV帧（frameIdx: 0,1,2）按682px精确切
 function Enemy:_setSkillFrame(frameIdx)
     if not self.skillMaterial then return end
@@ -555,6 +850,27 @@ function Enemy:update(dt)
         return
     end
 
+    -- Boss技能2更新（施法期间停止移动）
+    if self.isBoss and self.skill2Active then
+        self.body:SetLinearVelocity(Vector2(0, velocity.y))
+        self:_updateSkill2(dt)
+        self:_updateHpBar()
+        self:_updateFloatingTexts(dt)
+        return
+    end
+
+    -- Boss愤怒状态检测（半血触发）
+    if self.isBoss and not self.enraged and self.hp <= self.maxHp * 0.5 then
+        self.enraged = true
+        self.skill2Timer = BOSS_SKILL2_CD * 0.5  -- 半CD后立即释放第一次
+        log:Write(LOG_INFO, "[Enemy] Boss entered RAGE mode! HP=" .. self.hp .. "/" .. self.maxHp)
+    end
+
+    -- 更新闪电特效（即使Boss不在施法状态，闪电可能仍在跟踪）
+    if self.isBoss and self.skill2EffActive then
+        self:_updateSkill2(dt)
+    end
+
     -- 计算与玩家的距离
     local playerPos = self.player:getPosition()
     local distX = math.abs(playerPos.x - pos.x)
@@ -580,9 +896,11 @@ function Enemy:update(dt)
     end
 
     if self.isBoss and self.spriteNode then
-        local dw = self.bossDispW or 2.4
+        local dw = (self.bossAtkAnimActive and self.bossAtkDispW) or self.bossDispW or 2.4
         local dh = self.bossDispH or 2.4
-        self.spriteNode.scale = Vector3(-dw * faceDir, 1.0, dh)
+        -- 攻击贴图默认朝向与行走贴图相反，需要取反
+        local flipSign = self.bossAtkAnimActive and 1 or -1
+        self.spriteNode.scale = Vector3(flipSign * dw * faceDir, 1.0, dh)
     elseif not self.isBoss and self.spriteNode then
         -- 有贴图的小怪：按每帧比例计算尺寸，通过scale.x翻转
         local halfH = 0.6
@@ -650,12 +968,50 @@ function Enemy:update(dt)
         end
     end
 
-    -- Boss行走动画帧更新（攻击状态时停止行走动画）
+    -- Boss动画帧更新（攻击时播放平A动画，否则播放行走动画）
     if self.isBoss and self.bossMaterial and self.bossWalkFrames then
-        if self.attacking then
-            -- 攻击状态：停在当前帧，不更新动画
-            self.bossWalkFrameTimer = 0
+        if self.attacking and self.bossAtkMaterial then
+            -- 攻击状态：切换到平A攻击动画
+            if not self.bossAtkAnimActive then
+                -- 刚进入攻击状态，切换材质
+                self.bossAtkAnimActive = true
+                self.bossAtkFrameTimer = 0
+                self.bossAtkCurrentFrame = 0
+                self:_setBossAtkFrame(0)
+                local mdl = self.spriteNode:GetComponent("StaticModel")
+                if mdl then mdl:SetMaterial(self.bossAtkMaterial) end
+                -- 调整精灵尺寸适配攻击帧比例（700x600 单帧）
+                local dispH = self.bossDispH or 2.4
+                local atkAspect = BOSS_ATK_FRAME_PX / BOSS_ATK_FRAME_PY  -- 700/600
+                local atkDispW = dispH * atkAspect
+                self.bossAtkDispW = atkDispW
+                -- 更新scale（保持当前朝向，攻击贴图朝向与行走相反）
+                local currentFaceDir = self.lastFaceDir or 1
+                self.spriteNode.scale = Vector3(atkDispW * currentFaceDir, 1.0, dispH)
+            end
+            -- 播放攻击帧动画
+            self.bossAtkFrameTimer = self.bossAtkFrameTimer + dt
+            local frameDur = 1.0 / BOSS_ATK_FPS
+            if self.bossAtkFrameTimer >= frameDur then
+                self.bossAtkFrameTimer = self.bossAtkFrameTimer - frameDur
+                self.bossAtkCurrentFrame = (self.bossAtkCurrentFrame + 1) % BOSS_ATK_FRAMES
+                self:_setBossAtkFrame(self.bossAtkCurrentFrame)
+            end
         else
+            -- 非攻击状态：切回行走动画
+            if self.bossAtkAnimActive then
+                self.bossAtkAnimActive = false
+                self.bossAtkFrameTimer = 0
+                self.bossAtkCurrentFrame = 0
+                local mdl = self.spriteNode:GetComponent("StaticModel")
+                if mdl then mdl:SetMaterial(self.bossMaterial) end
+                -- 恢复行走精灵尺寸
+                local dw = self.bossDispW or 2.4
+                local dh = self.bossDispH or 2.4
+                local currentFaceDir = self.lastFaceDir or self.patrolDir or 1
+                self.spriteNode.scale = Vector3(-dw * currentFaceDir, 1.0, dh)
+            end
+            -- 播放行走帧动画
             self.bossWalkFrameTimer = self.bossWalkFrameTimer + dt
             local frameDur = 1.0 / self.bossWalkFPS
             if self.bossWalkFrameTimer >= frameDur then
@@ -674,10 +1030,18 @@ function Enemy:update(dt)
     end
 
     -- Boss大招触发：只要存活就持续计时，每4秒释放一次（不依赖追逐状态）
-    if self.isBoss and not self.skillActive then
+    if self.isBoss and not self.skillActive and not self.skill2Active then
         self.skillTimer = self.skillTimer + dt
         if self.skillTimer >= BOSS_SKILL_CD then
             self:_startSkill()
+        end
+    end
+
+    -- Boss技能2（愤怒闪电）CD触发：半血后定期释放
+    if self.isBoss and self.enraged and not self.skill2Active and not self.skillActive then
+        self.skill2Timer = self.skill2Timer + dt
+        if self.skill2Timer >= BOSS_SKILL2_CD then
+            self:_startSkill2()
         end
     end
 
@@ -871,6 +1235,11 @@ function Enemy:die()
         self.node:Remove()
         self.node = nil
     end
+    -- 隐藏闪电特效节点（场景级节点，不随Boss节点自动移除）
+    if self.skill2EffNode then
+        self.skill2EffNode.enabled = false
+        self.skill2EffActive = false
+    end
     -- 只隐藏血条，不移除（避免重建时样式丢失）
     if self.hpBarContainer ~= nil then
         self.hpBarContainer.visible = false
@@ -905,18 +1274,48 @@ function Enemy:reset()
     self.skillCurrentFrame = 0
     self.skillDamageDealt = false
     self.skillFirstApproachTriggered = false
+    -- 重置Boss平A动画状态
+    self.bossAtkAnimActive = false
+    self.bossAtkFrameTimer = 0
+    self.bossAtkCurrentFrame = 0
+    -- 重置Boss技能2状态
+    self.enraged = false
+    self.skill2Timer = 0
+    self.skill2Active = false
+    self.skill2FrameTimer = 0
+    self.skill2CurrentFrame = 0
+    self.skill2EffReleased = false
+    self.skill2EffActive = false
+    self.skill2EffTimer = 0
+    self.skill2EffFrameTimer = 0
+    self.skill2EffCurrentFrame = 0
+    self.skill2DamageDealt = false
     -- 隐藏技能特效节点
     if self.isBoss and self.skillNode then
         self.skillNode.enabled = false
+    end
+    -- 隐藏闪电特效节点
+    if self.isBoss and self.skill2EffNode then
+        self.skill2EffNode.enabled = false
     end
     self:_clearFloatingTexts()
 
     -- 如果节点已被移除（敌人死亡时），重新创建
     if self.node == nil then
         self:_createNode(self.scene, self.startX, self.spawnY)
+        if self.isBoss then
+            self:_initBossSkill()
+            self:_initBossAttack()
+            self:_initBossSkill2()
+        end
     else
         self.node.position = Vector3(self.startX, self.spawnY, 0)
         self.body:SetLinearVelocity(Vector2(0, 0))
+        -- 确保Boss重置后恢复行走材质
+        if self.isBoss and self.bossMaterial and self.spriteNode then
+            local mdl = self.spriteNode:GetComponent("StaticModel")
+            if mdl then mdl:SetMaterial(self.bossMaterial) end
+        end
     end
 
     -- 重置血条填充

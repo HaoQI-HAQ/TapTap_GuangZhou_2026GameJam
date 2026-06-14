@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- game_mode.lua
 -- 游戏模式：场景创建、关卡初始化、游戏循环、菜单回调、UI
 ---@diagnostic disable: undefined-global, redefined-local, param-type-mismatch, assign-type-mismatch

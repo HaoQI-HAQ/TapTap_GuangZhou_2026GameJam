@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- ui/pause_ui.lua
 -- 暂停面板和 ComingSoon 面板
 ---@diagnostic disable: undefined-global, param-type-mismatch, assign-type-mismatch

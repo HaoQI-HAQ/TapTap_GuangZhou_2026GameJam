@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 敌人属性配置表（由 CSV 转换而来，可直接编辑此文件或编辑 CSV 后重新生成）
 -- 修改数值后重新构建即可生效
 return {

@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- UI可视化编辑器（增强版）
 -- 功能：平移缩放画布、拖拽调整UI元素、创建UI图片、资源替换预览、导出配置
 ---@diagnostic disable: redefined-local, undefined-global

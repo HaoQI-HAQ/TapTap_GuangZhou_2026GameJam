@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- ============================================================================
 -- 《54321》游戏配置表
 -- 所有数值调整在这里，不需要改逻辑代码

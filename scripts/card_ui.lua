@@ -1,4 +1,4 @@
----@diagnostic disable: param-type-mismatch, assign-type-mismatch
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- 卡牌UI模块 - 右下角5张手牌（在平A按钮上方）
 local CardData = require("scripts/card_data")
 local ScreenUtils = require("scripts/screen_utils")

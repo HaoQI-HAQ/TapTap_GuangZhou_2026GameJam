@@ -1,10 +1,14 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- editor_mode.lua
 -- 编辑器模式：初始化/销毁、UI构建、模式切换、更新循环
 ---@diagnostic disable: undefined-global, redefined-local, param-type-mismatch, assign-type-mismatch
 
 local LevelManager = require("scripts/level_manager")
+local BGM = require("scripts/bgm")
 
 local M = {}
+local isMuted = false
+local volumeBtn = nil
 
 -- ============================================================================
 -- 注入共享状态
@@ -265,6 +269,29 @@ function M._createEditorUI()
             },
             G.UI_lib.Panel { flex = 1 },
             G.UI_lib.Button {
+                id = "btn_volume",
+                text = "音量: 开",
+                fontSize = 12,
+                width = 80,
+                height = 28,
+                variant = "outline",
+                onClick = function()
+                    isMuted = not isMuted
+                    if isMuted then
+                        BGM.setPaused(true)
+                        audio:SetMasterGain(SOUND_MUSIC, 0.0)
+                    else
+                        audio:SetMasterGain(SOUND_MUSIC, 1.0)
+                        BGM.setPaused(false)
+                    end
+                    if volumeBtn then
+                        volumeBtn:SetText(isMuted and "音量: 关" or "音量: 开")
+                        volumeBtn:SetVariant(isMuted and "danger" or "outline")
+                    end
+                end,
+            },
+            G.UI_lib.Panel { width = 8 },
+            G.UI_lib.Button {
                 id = "btn_start_game",
                 text = "启动游戏",
                 fontSize = 13,
@@ -311,6 +338,7 @@ function M._createEditorUI()
     G.tabLevel = G.editorRoot:FindById("tab_level")
     G.tabUI = G.editorRoot:FindById("tab_ui")
     G.statusLabel = G.editorRoot:FindById("status")
+    volumeBtn = G.editorRoot:FindById("btn_volume")
 end
 
 -- ============================================================================

@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- ui/victory_ui.lua
 -- 胜利 CG 界面创建与动画
 ---@diagnostic disable: undefined-global, param-type-mismatch, assign-type-mismatch

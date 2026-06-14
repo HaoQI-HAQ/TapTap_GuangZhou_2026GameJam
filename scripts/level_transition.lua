@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-global, type-not-found, param-type-mismatch, assign-type-mismatch
 -- level_transition.lua
 -- 关卡过渡：状态保存、切换、恢复
 ---@diagnostic disable: undefined-global, param-type-mismatch, assign-type-mismatch
