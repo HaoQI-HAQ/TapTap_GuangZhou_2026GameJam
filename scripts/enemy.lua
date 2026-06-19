@@ -72,7 +72,9 @@ local ENEMY_WALK_TEXTURES = {
 }
 -- 小怪攻击动画贴图（按属性）
 local ENEMY_ATK_TEXTURES = {
+    fire = { path = "image/Enemy/fire/enemy_fire_atk.png", framePx = 250, texW = 1000, texH = 250, frames = 4, facesLeft = false },
     ice = { path = "image/Enemy/ice/enemy_ice_atk.png", framePx = 200, texW = 800, texH = 339, frames = 4, facesLeft = false },
+    thunder = { path = "image/Enemy/thunder/enemy_thunder_atk.png", framePx = 200, texW = 800, texH = 90, frames = 4, facesLeft = false },
     grass = { path = "image/Enemy/grass/enemy_grass_atk.png", framePx = 200, texW = 800, texH = 200, frames = 4, facesLeft = true },
     earth = { path = "image/Enemy/earth/enemy_earth_atk.png", framePx = 380, texW = 1520, texH = 380, frames = 4, facesLeft = false },
 }
