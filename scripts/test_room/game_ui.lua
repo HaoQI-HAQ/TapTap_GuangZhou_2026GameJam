@@ -36,11 +36,12 @@ function GameUI:_setup()
     self:_createAttackButton()
 
     self:_createSensesStatusUI()
+    self:_createCardTestPanel()
 
     -- 默认隐藏（等菜单点击START后再显示）
     self:hide()
 
-    log:Write(LOG_INFO, "[GameUI] Created with HP display, buttons and BACK")
+    log:Write(LOG_INFO, "[GameUI] Created with HP display, buttons, card test panel and BACK")
 end
 
 -- 左上角血量显示
@@ -284,6 +285,79 @@ function GameUI:updateSensesIcons()
     end
 end
 
+-- 右中位置：卡牌技能测试按钮面板（仅测试关卡）
+function GameUI:_createCardTestPanel()
+    local S = self._S
+    local uiRoot = ui.root
+    local CardData = require("scripts/card_data")
+
+    -- 收集所有卡牌ID并排序
+    local cardIds = {}
+    for id, _ in pairs(CardData.CARDS) do
+        table.insert(cardIds, id)
+    end
+    table.sort(cardIds)
+
+    local btnW = S(52)
+    local btnH = S(24)
+    local gap = S(3)
+    local cols = 2
+    local rows = math.ceil(#cardIds / cols)
+    local panelW = cols * btnW + (cols - 1) * gap + S(10)
+    local panelH = rows * btnH + (rows - 1) * gap + S(10)
+
+    -- 面板容器（左中位置）
+    local panel = UIElement:new()
+    uiRoot:AddChild(panel)
+    panel:SetAlignment(HA_LEFT, VA_CENTER)
+    panel:SetSize(panelW, panelH)
+    panel:SetPosition(S(5), 0)
+    table.insert(self.elements, panel)
+
+    -- 半透明背景
+    local bg = BorderImage:new()
+    panel:AddChild(bg)
+    bg:SetSize(panelW, panelH)
+    bg.color = Color(0.0, 0.0, 0.0, 0.3)
+
+    -- 创建每个卡牌按钮（每个按钮独立全局处理函数）
+    for i, cardId in ipairs(cardIds) do
+        local col = (i - 1) % cols
+        local row = math.floor((i - 1) / cols)
+        local x = S(5) + col * (btnW + gap)
+        local y = S(5) + row * (btnH + gap)
+
+        local btn = Button:new()
+        panel:AddChild(btn)
+        btn:SetSize(btnW, btnH)
+        btn:SetPosition(x, y)
+        btn:SetStyle("Button")
+        btn:SetFocusMode(FM_NOTFOCUSABLE)
+
+        -- 按属性设置按钮颜色
+        local card = CardData.CARDS[cardId]
+        local elemInfo = CardData.ELEMENT_COLORS[card.element]
+        if elemInfo then
+            btn.color = Color(elemInfo.color.r, elemInfo.color.g, elemInfo.color.b, 0.7)
+        end
+
+        local label = Text:new()
+        btn:AddChild(label)
+        label:SetStyleAuto()
+        label.text = cardId
+        label:SetFontSize(S(11))
+        label:SetAlignment(HA_CENTER, VA_CENTER)
+        label.color = Color(1, 1, 1, 1)
+
+        -- 存储按钮和对应卡牌（用于触摸检测）
+        if not self._testCardBtns then self._testCardBtns = {} end
+        table.insert(self._testCardBtns, { btn = btn, card = card })
+    end
+
+    self.cardTestPanel = panel
+    log:Write(LOG_INFO, "[GameUI] Card test panel created with " .. #cardIds .. " buttons")
+end
+
 --- 销毁所有UI元素（从 ui.root 移除），重新开始前调用
 function GameUI:destroy()
     for _, elem in ipairs(self.elements) do
@@ -334,6 +408,29 @@ end
 
 -- 多点触控按钮检测（每帧调用）- 解决摇杆占用首触摸点后其他按钮无响应
 function GameUI:_updateTouchButtons()
+    -- 鼠标点击检测测试面板（桌面端，放在最前面避免被 return 跳过）
+    if self._testCardBtns and input:GetMouseButtonPress(MOUSEB_LEFT) then
+        local mx = input.mousePosition.x
+        local my = input.mousePosition.y
+        local gfxW = graphics:GetWidth()
+        local gfxH = graphics:GetHeight()
+        local uiW = ui.root.width
+        local uiH = ui.root.height
+        local sx = (gfxW > 0 and uiW > 0) and (mx * uiW / gfxW) or mx
+        local sy = (gfxH > 0 and uiH > 0) and (my * uiH / gfxH) or my
+        for _, entry in ipairs(self._testCardBtns) do
+            local btnPos = entry.btn.screenPosition
+            local btnSize = entry.btn.size
+            if sx >= btnPos.x and sx <= btnPos.x + btnSize.x
+               and sy >= btnPos.y and sy <= btnPos.y + btnSize.y then
+                if G and G.cardSkills then
+                    G.cardSkills:execute(entry.card)
+                end
+                break
+            end
+        end
+    end
+
     local numTouches = input.numTouches
     if numTouches <= 0 then
         if self._touchJumpActive then
@@ -410,6 +507,40 @@ function GameUI:_updateTouchButtons()
     end
     if not cardTouching then
         self._touchCardActive = nil
+    end
+
+    -- 测试面板按钮触摸检测（移动端）
+    if self._testCardBtns then
+        for i = 0, numTouches - 1 do
+            local touch = input:GetTouch(i)
+            if touch and touch.touchedElement then
+                for _, entry in ipairs(self._testCardBtns) do
+                    if self:_isTouchOnElement(touch.touchedElement, entry.btn) then
+                        if self._lastTestCardTouched ~= entry.card.id then
+                            self._lastTestCardTouched = entry.card.id
+                            if G and G.cardSkills then
+                                G.cardSkills:execute(entry.card)
+                            end
+                        end
+                        return
+                    end
+                end
+            end
+        end
+        -- 松开时重置
+        local testTouching = false
+        for i = 0, numTouches - 1 do
+            local touch = input:GetTouch(i)
+            if touch and touch.touchedElement and self.cardTestPanel then
+                if self:_isTouchOnElement(touch.touchedElement, self.cardTestPanel) then
+                    testTouching = true
+                    break
+                end
+            end
+        end
+        if not testTouching then
+            self._lastTestCardTouched = nil
+        end
     end
 end
 

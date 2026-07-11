@@ -414,7 +414,7 @@ function M.gameUpdate(dt)
         end
     end
 
-    G.sensesSystem:update(dt)
+    if G.sensesSystem then G.sensesSystem:update(dt) end
     G.gameUI:update(dt)
 
     if G.levelManager and not G.player:isDead() then
